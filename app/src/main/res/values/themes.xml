@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#0F7B5F</color>
+    <color name="brand_dark">#0A5A45</color>
+    <color name="listening">#D84343</color>
+    <color name="surface_card">#F2F7F5</color>
+    <color name="text_primary">#1B1F1E</color>
+    <color name="text_secondary">#5C6663</color>
+    <color name="white">#FFFFFF</color>
+
+    <style name="Theme.Naffith" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorPrimaryDark">@color/brand_dark</item>
+        <item name="android:statusBarColor">@color/brand_dark</item>
+        <item name="android:windowBackground">@color/white</item>
+    </style>
+</resources>

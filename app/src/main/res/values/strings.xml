@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">نفّذ</string>
+    <string name="tagline">قول أمرك بالسعودي، وأنا أنفّذ</string>
+    <string name="mic_description">اضغط وتكلم</string>
+    <string name="transcript_placeholder">اضغط المايك وقل مثلاً: «اتصل على أبوي»</string>
+    <string name="examples">أمثلة:\n• افتح الخرائط وابحث عن أقرب صيدلية\n• شغل لي محمد عبده في يوتيوب\n• افتح محادثة مع سارة في الواتساب\n• دق على خالد</string>
+
+    <string name="status_ready">جاهز</string>
+    <string name="status_listening">أسمعك… تكلم</string>
+    <string name="status_processing">لحظة…</string>
+    <string name="heard_format">«%1$s»</string>
+
+    <string name="opening_maps">أفتح الخرائط…</string>
+    <string name="searching_maps">أبحث في الخرائط عن «%1$s»</string>
+    <string name="opening_youtube">أفتح يوتيوب…</string>
+    <string name="searching_youtube">أبحث في يوتيوب عن «%1$s»</string>
+    <string name="opening_whatsapp">أفتح محادثة واتساب مع %1$s</string>
+    <string name="calling">أتصل على %1$s…</string>
+    <string name="dialing_instead">ما عندي إذن الاتصال المباشر، فتحت لك لوحة الاتصال برقم %1$s</string>
+    <string name="cannot_open">ما قدرت أفتح التطبيق المطلوب على جهازك.</string>
+    <string name="whatsapp_not_installed">واتساب مو مثبت على جهازك، فتحت الرابط بالمتصفح.</string>
+
+    <string name="ask_whatsapp_name">مع مين تبي تفتح محادثة واتساب؟ قل الاسم</string>
+    <string name="ask_call_name">على مين تبي تتصل؟ قل الاسم</string>
+    <string name="searching_contacts">أدوّر على «%1$s» في جهات الاتصال…</string>
+    <string name="contact_not_found_title">ما لقيت الاسم</string>
+    <string name="contact_not_found">ما لقيت «%1$s» في جهات الاتصال. تبي تقول الاسم مرة ثانية؟</string>
+    <string name="no_contacts">ما فيه جهات اتصال بأرقام على الجهاز.</string>
+    <string name="choose_contact">لقيت أكثر من اسم، اختر واحد:</string>
+
+    <string name="unclear_status">ما فهمت قصدك. سمعتك تقول النص اللي فوق، وضّح لي وش تبي؟</string>
+    <string name="unclear_title">وش تقصد بـ «%1$s»؟</string>
+    <string name="unclear_maps">أبحث عنه في الخرائط</string>
+    <string name="unclear_youtube">أبحث عنه في يوتيوب</string>
+    <string name="unclear_call">أتصل على جهة اتصال بهذا الاسم</string>
+    <string name="unclear_whatsapp">أفتح محادثة واتساب بهذا الاسم</string>
+    <string name="unclear_retry">أعيد الاستماع</string>
+
+    <string name="perm_mic_denied">بدون إذن المايك ما أقدر أسمعك. اضغط المايك مرة ثانية إذا غيرت رأيك.</string>
+    <string name="perm_contacts_denied">بدون إذن جهات الاتصال ما أقدر ألقى الاسم. تقدر تطلب البحث بالخرائط أو يوتيوب بدونه.</string>
+    <string name="perm_permanent_title">الإذن مرفوض</string>
+    <string name="perm_permanent_mic">رفضت إذن المايك نهائياً. فعّله من الإعدادات عشان أقدر أسمعك.</string>
+    <string name="perm_permanent_contacts">رفضت إذن جهات الاتصال نهائياً. فعّله من الإعدادات عشان أقدر أتصل أو أراسل.</string>
+    <string name="open_settings">فتح الإعدادات</string>
+
+    <string name="retry">أعيد المحاولة</string>
+    <string name="cancel">إلغاء</string>
+
+    <string name="speech_unavailable">التعرف على الصوت غير متوفر على جهازك. ثبّت أو فعّل تطبيق Google.</string>
+    <string name="err_no_match">ما سمعت شي واضح. اضغط المايك وتكلم مرة ثانية.</string>
+    <string name="err_network">فيه مشكلة في الإنترنت، تأكد من الاتصال وحاول مرة ثانية.</string>
+    <string name="err_audio">فيه مشكلة في المايك.</string>
+    <string name="err_busy">التعرف على الصوت مشغول، حاول بعد شوي.</string>
+    <string name="err_language">العربية (السعودية) غير متوفرة في محرك التعرف. نزّل حزمة اللغة العربية من إعدادات Google.</string>
+    <string name="err_generic">صار خطأ في التعرف على الصوت (رمز %1$d). حاول مرة ثانية.</string>
+</resources>
