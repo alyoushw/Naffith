@@ -1,5 +1,8 @@
-▁ Y A ▁NA F I TH :2.0 #0.25 @ya_naffith
-▁ Y A ▁NA F I Z :2.0 #0.25 @ya_naffith
-▁ Y A ▁NA F E E TH :2.0 #0.25 @ya_naffith
-▁ Y A A ▁NA FF I TH :2.0 #0.25 @ya_naffith
-▁ Y A ▁NA F E Z :2.0 #0.25 @ya_naffith
+▁ Y A ▁NA F I TH @ya_naffith
+▁ Y A ▁NA F I Z @ya_naffith
+▁ Y A ▁NA F E E TH @ya_naffith
+▁ Y A A ▁NA FF I TH @ya_naffith
+▁ Y A ▁NA F E Z @ya_naffith
+▁ Y A ▁NA F ID @ya_naffith
+▁ Y A ▁NA F ED @ya_naffith
+▁ Y A ▁NO F I TH @ya_naffith

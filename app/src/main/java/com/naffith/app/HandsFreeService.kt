@@ -180,8 +180,9 @@ class HandsFreeService : Service() {
                 numThreads = 1,
             ),
             keywordsFile = "$dir/keywords.txt",
-            keywordsScore = 1.5f,
-            keywordsThreshold = 0.25f,
+            keywordsScore = 2.5f,
+            // الحساسية من الإعدادات: كل ما قل الحد التقط أسهل.
+            keywordsThreshold = VoicePrefs.wakeThreshold(this),
             numTrailingBlanks = 1,
         )
         return KeywordSpotter(assets, config).also { spotter = it }
@@ -239,10 +240,9 @@ class HandsFreeService : Service() {
         worker = null
         running = false
         vibrate()
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            putExtra(MainActivity.EXTRA_START_LISTENING, true)
-            putExtra(MainActivity.EXTRA_FROM_WAKE_WORD, true)
+        // نافذة المساعد الصغيرة: ترد «هلا بيك، أمرني» وتسمع الأمر.
+        val intent = Intent(this, VoicePopupActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         val started = Settings.canDrawOverlays(this) && runCatching { startActivity(intent) }.isSuccess
         if (!started) showAlert(getString(R.string.hf_tap_to_talk), intent)

@@ -9,7 +9,11 @@ import android.net.Uri
 import com.naffith.app.core.PhoneNumbers
 
 /** يفتح التطبيقات الأخرى، مع بدائل إذا التطبيق مو مثبت. يرجع false إذا ما قدر يفتح شي. */
-class AppLauncher(private val context: Context) {
+class AppLauncher(
+    private val context: Context,
+    /** ينادى لما ينفتح تطبيق ثاني بنجاح (النافذة الصغيرة تسكّر بعدها). */
+    private val onLaunched: () -> Unit = {},
+) {
 
     companion object {
         const val MAPS_PACKAGE = "com.google.android.apps.maps"
@@ -85,6 +89,7 @@ class AppLauncher(private val context: Context) {
 
     private fun start(intent: Intent): Boolean = try {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        onLaunched()
         true
     } catch (_: ActivityNotFoundException) {
         false

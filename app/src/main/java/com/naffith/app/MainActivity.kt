@@ -32,15 +32,25 @@ import com.naffith.app.core.Contact
 import com.naffith.app.core.ContactMatcher
 import com.naffith.app.core.MatchResult
 import kotlinx.coroutines.launch
-import java.util.Locale
 
-class MainActivity : AppCompatActivity() {
+/**
+ * الشاشة الرئيسية. [VoicePopupActivity] يستخدم نفس المنطق بس كنافذة صغيرة تطلع لما
+ * تنادي «يا نفّذ» أو تضغط زر المساعد.
+ */
+open class MainActivity : AppCompatActivity() {
+
+    /** نافذة المساعد الصغيرة؟ (ترد بالصوت وتسكّر نفسها بعد التنفيذ). */
+    protected open val isPopup = false
+    protected open val layoutRes = R.layout.activity_main
 
     private lateinit var transcriptText: TextView
     private lateinit var statusText: TextView
     private lateinit var micButton: ImageButton
-    private lateinit var handsFreeSwitch: MaterialSwitch
+    private var handsFreeSwitch: MaterialSwitch? = null
     private var updatingSwitch = false
+
+    /** كم مرة ما فهمنا في نافذة المساعد (نوقف بعد مرتين). */
+    private var unclearCount = 0
 
     private lateinit var launcher: AppLauncher
     private lateinit var contactsRepository: ContactsRepository
@@ -104,7 +114,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(layoutRes)
 
         transcriptText = findViewById(R.id.transcriptText)
         statusText = findViewById(R.id.statusText)
@@ -114,20 +124,20 @@ class MainActivity : AppCompatActivity() {
         contactsRepository = ContactsRepository(this)
         choiceMemory = ChoiceMemory(PrefsStore(getSharedPreferences("choices", MODE_PRIVATE)))
 
-        handsFreeSwitch = findViewById(R.id.handsFreeSwitch)
-        handsFreeSwitch.isChecked = HandsFreeService.isEnabled(this)
-        handsFreeSwitch.setOnCheckedChangeListener { _, checked ->
-            if (!updatingSwitch) onHandsFreeToggled(checked)
+        handsFreeSwitch = findViewById<MaterialSwitch?>(R.id.handsFreeSwitch)?.also { sw ->
+            sw.isChecked = HandsFreeService.isEnabled(this)
+            sw.setOnCheckedChangeListener { _, checked ->
+                if (!updatingSwitch) onHandsFreeToggled(checked)
+            }
+        }
+        findViewById<android.view.View?>(R.id.settingsButton)?.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        // نجهّز الصوت من بدري عشان «هلا والله» تطلع على طول.
-        if (HandsFreeService.isEnabled(this)) initTts()
+        // نجهّز الصوت من بدري عشان الرد يطلع على طول.
+        if (isPopup || HandsFreeService.isEnabled(this)) initTts()
 
         micButton.setOnClickListener { onMicClicked() }
-        micButton.setOnLongClickListener {
-            confirmForgetChoices()
-            true
-        }
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
@@ -162,6 +172,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        if (isPopup) {
+            // النافذة الصغيرة تسكّر بعد ما فتحنا التطبيق المطلوب (أو لما يطلع منها المستخدم).
+            if (!isChangingConfigurations) finish()
+            return
+        }
         showOverLockScreen(false)
         voiceMode = false
     }
@@ -169,6 +184,16 @@ class MainActivity : AppCompatActivity() {
     /** أوامر جاية من وضع «يا نفّذ» أو من زر الأوامر الصوتية في السماعة. */
     private fun handleLaunchIntent(intent: Intent?) {
         intent ?: return
+        if (isPopup) {
+            // النافذة الصغيرة: نرد «هلا بيك، أمرني» بالصوت وبعدها نسمع.
+            voiceMode = true
+            unclearCount = 0
+            showOverLockScreen(true)
+            transcriptText.text = ""
+            setStatus(getString(R.string.hf_greeting))
+            say(getString(R.string.hf_greeting)) { if (!isListening) startListeningWithPermission() }
+            return
+        }
         val commands = intent.getStringArrayListExtra(EXTRA_COMMANDS)
         when {
             !commands.isNullOrEmpty() -> {
@@ -260,7 +285,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setSwitchChecked(checked: Boolean) {
         updatingSwitch = true
-        handsFreeSwitch.isChecked = checked
+        handsFreeSwitch?.isChecked = checked
         updatingSwitch = false
     }
 
@@ -299,10 +324,8 @@ class MainActivity : AppCompatActivity() {
         tts = TextToSpeech(this) { status ->
             val engine = tts ?: return@TextToSpeech
             if (status != TextToSpeech.SUCCESS) return@TextToSpeech
-            val sa = engine.setLanguage(Locale("ar", "SA"))
-            if (sa == TextToSpeech.LANG_MISSING_DATA || sa == TextToSpeech.LANG_NOT_SUPPORTED) {
-                engine.setLanguage(Locale("ar"))
-            }
+            // أوضح وأطبع صوت عربي متوفر (أو اللي اختاره المستخدم من الإعدادات).
+            VoicePrefs.applyBestVoice(this, engine)
             engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
                 override fun onDone(utteranceId: String?) {
@@ -342,11 +365,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startListening() {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+        if (!VoicePrefs.isRecognitionAvailable(this)) {
             setStatus(getString(R.string.speech_unavailable))
             return
         }
-        val sr = recognizer ?: SpeechRecognizer.createSpeechRecognizer(this).also {
+        val sr = recognizer ?: VoicePrefs.createRecognizer(this).also {
             it.setRecognitionListener(listener)
             recognizer = it
         }
@@ -387,6 +410,7 @@ class MainActivity : AppCompatActivity() {
             val alternatives = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
             if (alternatives.none { it.isNotBlank() }) {
                 setStatus(getString(R.string.err_no_match))
+                closePopupSoon()
                 return
             }
             handleSpeech(alternatives)
@@ -395,7 +419,16 @@ class MainActivity : AppCompatActivity() {
         override fun onError(error: Int) {
             setListening(false)
             setStatus(errorMessage(error))
+            closePopupSoon()
         }
+    }
+
+    /** النافذة الصغيرة ما تبقى معلّقة إذا ما قلت شي. */
+    private fun closePopupSoon() {
+        if (!isPopup) return
+        micButton.postDelayed({
+            if (!isListening && followUp == null && !isFinishing) finish()
+        }, 4000)
     }
 
     private fun errorMessage(error: Int): String = when (error) {
@@ -498,8 +531,12 @@ class MainActivity : AppCompatActivity() {
     /** لما ما نفهم الأمر: نعرض اللي سمعناه ونخلي المستخدم يختار وش يقصد. */
     private fun askForClarification(heard: String) {
         if (voiceMode) {
-            // الجوال ممكن يكون في جيبك، فنسألك بالصوت ونسمع مرة ثانية بدل القائمة.
+            // الجوال ممكن يكون في جيبك، فنسألك بالصوت ونسمع مرة ثانية بدل القائمة (مرتين بالكثير).
             setStatus(getString(R.string.unclear_status))
+            if (++unclearCount > 2) {
+                say(getString(R.string.voice_give_up)) { if (isPopup) finish() }
+                return
+            }
             say(getString(R.string.voice_unclear)) { if (!isListening) startListeningWithPermission() }
             return
         }
@@ -705,19 +742,6 @@ class MainActivity : AppCompatActivity() {
         } else {
             setStatus(getString(R.string.cannot_open))
         }
-    }
-
-    /** ضغطة طويلة على المايك: نسيان الاختيارات المحفوظة. */
-    private fun confirmForgetChoices() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.forget_title)
-            .setMessage(R.string.forget_message)
-            .setPositiveButton(R.string.forget_confirm) { _, _ ->
-                choiceMemory.forgetAll()
-                setStatus(getString(R.string.forget_done))
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
     }
 
     // ---------- الواجهة ----------

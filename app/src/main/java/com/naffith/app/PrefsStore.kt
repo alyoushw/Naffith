@@ -9,4 +9,6 @@ class PrefsStore(private val prefs: SharedPreferences) : ChoiceMemory.Store {
     override fun put(key: String, value: String) = prefs.edit().putString(key, value).apply()
     override fun remove(key: String) = prefs.edit().remove(key).apply()
     override fun clear() = prefs.edit().clear().apply()
+    override fun all(): Map<String, String> =
+        prefs.all.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap()
 }

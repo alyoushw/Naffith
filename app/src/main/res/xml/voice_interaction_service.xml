@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:recognitionService="com.naffith.app.assistant.NaffithRecognitionService"
+    android:sessionService="com.naffith.app.assistant.NaffithSessionService"
+    android:settingsActivity="com.naffith.app.SettingsActivity"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="true" />

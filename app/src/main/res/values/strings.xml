@@ -4,7 +4,40 @@
     <string name="tagline">قول أمرك بالسعودي، وأنا أنفّذ</string>
     <string name="mic_description">اضغط وتكلم</string>
     <string name="transcript_placeholder">اضغط المايك وقل مثلاً: «اتصل على أبوي»</string>
-    <string name="examples">أمثلة:\n• افتح الخرائط وابحث عن أقرب صيدلية\n• شغل لي محمد عبده في يوتيوب\n• افتح واتساب روحي اكتب هلا\n• دق على خالد\n\nإذا اخترت اسم من القائمة أحفظه للمرة الجاية. ضغطة طويلة على المايك تمسح الاختيارات المحفوظة.</string>
+    <string name="examples">أمثلة:\n• افتح الخرائط وابحث عن أقرب صيدلية\n• شغل لي قصيدة وليا وحافظا\n• اكتب رسالة واتساب روحي هلا وارسلها\n• دق على خالد\n\nإذا اخترت اسم من القائمة أحفظه كاسم ثاني للمرة الجاية، وتلقاه في الإعدادات ⚙️.</string>
+    <string name="settings_title">الإعدادات</string>
+    <string name="aliases_title">الأسماء الثانية</string>
+    <string name="aliases_hint">الاسم اللي تقوله ← جهة الاتصال اللي يروح لها على طول.</string>
+    <string name="aliases_empty">ما فيه أسماء محفوظة للحين. تنحفظ لما تختار اسم من القائمة، أو أضفها من هنا.</string>
+    <string name="aliases_add">إضافة اسم ثاني</string>
+    <string name="aliases_add_hint">مثلاً: روحي، أبو فهد، الجنوبي</string>
+    <string name="aliases_pick_contact">اختر جهة الاتصال</string>
+    <string name="alias_row">«%1$s» ← %2$s\n%3$s</string>
+    <string name="alias_delete">حذف</string>
+    <string name="alias_delete_confirm">أحذف «%1$s» = %2$s؟</string>
+    <string name="assistant_title">زر المساعد (بدون مايك شغال)</string>
+    <string name="assistant_off">خلّ «نفّذ» المساعد الافتراضي: بعدها ضغطة مطوّلة على زر التشغيل (أو زر الهوم) تفتح نافذة نفّذ وتقول لك «هلا بيك، أمرني»، والمايك ما يشتغل إلا وقتها.\n\nملاحظة: هذا يحل محل مساعد Google («Hey Google»).</string>
+    <string name="assistant_on">✅ «نفّذ» هو المساعد الافتراضي. اضغط مطوّل على زر التشغيل (أو زر الهوم) وقل أمرك.</string>
+    <string name="assistant_button">اجعل نفّذ المساعد الافتراضي</string>
+    <string name="assistant_change">تغيير المساعد الافتراضي</string>
+    <string name="assistant_toast">اختر «المساعد الرقمي» أو «تطبيق المساعد» ← نفّذ</string>
+    <string name="voice_title">صوت الرد</string>
+    <string name="voice_choose">اختيار الصوت</string>
+    <string name="voice_save">حفظ</string>
+    <string name="voice_missing">ما لقيت صوت عربي. ثبّت «خدمات Google للكلام» ونزّل العربي من إعدادات تحويل النص إلى كلام.</string>
+    <string name="voice_quality_best">أعلى جودة</string>
+    <string name="voice_quality_high">جودة عالية</string>
+    <string name="voice_quality_normal">عادي</string>
+    <string name="voice_needs_internet">يحتاج إنترنت</string>
+    <string name="voice_give_up">ما قدرت أفهم، نادني مرة ثانية</string>
+    <string name="sensitivity_title">حساسية «يا نفّذ»</string>
+    <string name="sensitivity_hint">إذا ما يرد عليك ارفعها، وإذا يشتغل لحاله نزّلها. (وضع «يا نفّذ» يحتاج المايك يسمع دايماً؛ إذا ما تبي كذا استخدم زر المساعد فوق.)</string>
+    <string name="sensitivity_normal">عادي (أقل تشغيل بالغلط)</string>
+    <string name="sensitivity_high">عالي</string>
+    <string name="sensitivity_max">عالي جداً (يلتقط أسهل)</string>
+    <string name="a11y_on">✅ مفعّل: «ارسل» يضغط إرسال في واتساب بنفسه.</string>
+    <string name="a11y_off">مو مفعّل: الرسالة تنكتب وتضغط إرسال بنفسك.</string>
+    <string name="settings_description">الإعدادات</string>
 
     <string name="status_ready">جاهز</string>
     <string name="status_listening">أسمعك… تكلم</string>
@@ -26,7 +59,7 @@
     <string name="a11y_description">يضغط زر الإرسال في واتساب بس لما تقول لـ«نفّذ» «ارسل». ما يقرأ ولا يحفظ رسايلك.</string>
     <string name="a11y_title">تفعيل الإرسال التلقائي</string>
     <string name="a11y_message">عشان أضغط «إرسال» بدالك، فعّل «نفّذ: الإرسال في واتساب» من إعدادات إمكانية الوصول.\n\nإذا طلع لك «إعداد مقيّد»: افتح معلومات التطبيق «نفّذ» ← النقاط الثلاث ← «السماح بالإعدادات المقيّدة»، وارجع فعّله.\n\nهالمرة كتبت لك الرسالة وتضغط إرسال بنفسك.</string>
-    <string name="hf_greeting">هلا والله</string>
+    <string name="hf_greeting">هلا بيك، أمرني</string>
     <string name="voice_unclear">ما فهمت عليك، عيد مرة ثانية</string>
     <string name="opening_whatsapp">أفتح محادثة واتساب مع %1$s</string>
     <string name="calling">أتصل على %1$s…</string>
@@ -63,7 +96,7 @@
     <string name="perm_permanent_contacts">رفضت إذن جهات الاتصال نهائياً. فعّله من الإعدادات عشان أقدر أتصل أو أراسل.</string>
     <string name="open_settings">فتح الإعدادات</string>
 
-    <string name="hf_switch">وضع «يا نفّذ»\nيسمعك حتى والجوال مقفول: قل «يا نفّذ»، استنى الهزّة، وقل أمرك</string>
+    <string name="hf_switch">وضع «يا نفّذ» (تجريبي)\nالمايك يسمع دايماً عشان يلتقط «يا نفّذ». إذا ما تبي مايك شغال، استخدم زر المساعد من الإعدادات ⚙️</string>
     <string name="hf_enabled">تمام! قل «يا نفّذ»، ولما يهز الجوال قل أمرك.</string>
     <string name="hf_disabled">طفّيت وضع «يا نفّذ».</string>
     <string name="hf_overlay_title">إذن الفتح من الخلفية</string>
