@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.speech.RecognitionListener
@@ -17,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.naffith.app.core.Command
 import com.naffith.app.core.ChoiceMemory
 import com.naffith.app.core.CommandParser
@@ -30,6 +32,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var transcriptText: TextView
     private lateinit var statusText: TextView
     private lateinit var micButton: ImageButton
+    private lateinit var handsFreeSwitch: MaterialSwitch
+    private var updatingSwitch = false
 
     private lateinit var launcher: AppLauncher
     private lateinit var contactsRepository: ContactsRepository
@@ -96,6 +100,12 @@ class MainActivity : AppCompatActivity() {
         contactsRepository = ContactsRepository(this)
         choiceMemory = ChoiceMemory(PrefsStore(getSharedPreferences("choices", MODE_PRIVATE)))
 
+        handsFreeSwitch = findViewById(R.id.handsFreeSwitch)
+        handsFreeSwitch.isChecked = HandsFreeService.isEnabled(this)
+        handsFreeSwitch.setOnCheckedChangeListener { _, checked ->
+            if (!updatingSwitch) onHandsFreeToggled(checked)
+        }
+
         micButton.setOnClickListener { onMicClicked() }
         micButton.setOnLongClickListener {
             confirmForgetChoices()
@@ -103,10 +113,109 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPostCreate(savedInstanceState: Bundle?) {
+        super.onPostCreate(savedInstanceState)
+        if (savedInstanceState == null) handleLaunchIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleLaunchIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        HandsFreeService.setAppVisible(true)
+        // إذا الوضع مفعّل والخدمة انقفلت (إعادة تشغيل الجوال مثلاً) نشغّلها والتطبيق ظاهر.
+        if (HandsFreeService.isEnabled(this) && HandsFreeService.instance == null &&
+            hasPermission(Manifest.permission.RECORD_AUDIO)
+        ) {
+            HandsFreeService.start(this)
+        }
+        setSwitchChecked(HandsFreeService.isEnabled(this))
+    }
+
     override fun onPause() {
         super.onPause()
         if (isListening) recognizer?.cancel()
         setListening(false)
+        HandsFreeService.setAppVisible(false)
+    }
+
+    /** أوامر جاية من وضع «يا نفّذ» أو من زر الأوامر الصوتية في السماعة. */
+    private fun handleLaunchIntent(intent: Intent?) {
+        intent ?: return
+        val commands = intent.getStringArrayListExtra(EXTRA_COMMANDS)
+        when {
+            !commands.isNullOrEmpty() -> {
+                intent.removeExtra(EXTRA_COMMANDS)
+                followUp = null
+                handleSpeech(commands)
+            }
+            intent.getBooleanExtra(EXTRA_START_LISTENING, false) ||
+                intent.action == Intent.ACTION_VOICE_COMMAND || intent.action == Intent.ACTION_ASSIST -> {
+                intent.removeExtra(EXTRA_START_LISTENING)
+                intent.action = null
+                micButton.postDelayed({ if (!isListening) startListeningWithPermission() }, 400)
+            }
+        }
+    }
+
+    // ---------- وضع «يا نفّذ» ----------
+
+    private fun onHandsFreeToggled(enabled: Boolean) {
+        if (!enabled) {
+            HandsFreeService.setEnabled(this, false)
+            HandsFreeService.stop(this)
+            setStatus(getString(R.string.hf_disabled))
+            return
+        }
+        withPermission(
+            Manifest.permission.RECORD_AUDIO,
+            onDenied = {
+                setSwitchChecked(false)
+                handleDenied(Manifest.permission.RECORD_AUDIO, R.string.perm_mic_denied, R.string.perm_permanent_mic)
+            }
+        ) {
+            requestNotificationsThen {
+                HandsFreeService.setEnabled(this, true)
+                HandsFreeService.start(this)
+                setSwitchChecked(true)
+                setStatus(getString(R.string.hf_enabled))
+                if (!Settings.canDrawOverlays(this)) askOverlayPermission()
+            }
+        }
+    }
+
+    /** أندرويد 13+: إذن الإشعارات للإشعار الثابت. رفضه ما يوقف الوضع. */
+    private fun requestNotificationsThen(next: () -> Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            withPermission(Manifest.permission.POST_NOTIFICATIONS, onDenied = next, onGranted = next)
+        } else {
+            next()
+        }
+    }
+
+    private fun askOverlayPermission() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.hf_overlay_title)
+            .setMessage(R.string.hf_overlay_message)
+            .setPositiveButton(R.string.open_settings) { _, _ ->
+                runCatching {
+                    startActivity(
+                        Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                    )
+                }
+            }
+            .setNegativeButton(R.string.hf_overlay_later, null)
+            .show()
+    }
+
+    private fun setSwitchChecked(checked: Boolean) {
+        updatingSwitch = true
+        handsFreeSwitch.isChecked = checked
+        updatingSwitch = false
     }
 
     override fun onDestroy() {
@@ -443,6 +552,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        const val EXTRA_COMMANDS = "com.naffith.app.extra.COMMANDS"
+        const val EXTRA_START_LISTENING = "com.naffith.app.extra.START_LISTENING"
         private const val LANGUAGE = "ar-SA"
         // ثوابت من API 31، نكتبها كأرقام عشان تشتغل مع minSdk 24.
         private const val ERROR_LANGUAGE_NOT_SUPPORTED = 12

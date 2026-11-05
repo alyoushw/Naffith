@@ -50,6 +50,19 @@
     <string name="perm_permanent_contacts">رفضت إذن جهات الاتصال نهائياً. فعّله من الإعدادات عشان أقدر أتصل أو أراسل.</string>
     <string name="open_settings">فتح الإعدادات</string>
 
+    <string name="hf_switch">وضع «يا نفّذ»\nيسمعك بدون ما تفتح التطبيق: «يا نفّذ اتصل على خالد»</string>
+    <string name="hf_enabled">تمام! قل «يا نفّذ» وبعدها أمرك، والشاشة شغالة.</string>
+    <string name="hf_disabled">طفّيت وضع «يا نفّذ».</string>
+    <string name="hf_overlay_title">إذن الفتح من الخلفية</string>
+    <string name="hf_overlay_message">عشان أفتح الخرائط أو أتصل وأنت برا التطبيق، أندرويد يحتاج إذن «الظهور فوق التطبيقات الأخرى» لـ«نفّذ».\n\nبدونه بأرسل لك إشعار تضغطه لتنفيذ الأمر.</string>
+    <string name="hf_overlay_later">بعدين</string>
+    <string name="hf_channel">وضع يا نفّذ</string>
+    <string name="hf_alert_channel">أوامر يا نفّذ</string>
+    <string name="hf_notification_title">نفّذ يسمعك</string>
+    <string name="hf_notification_text">قل «يا نفّذ» وبعدها أمرك</string>
+    <string name="hf_stop">إيقاف</string>
+    <string name="hf_tap_to_run">اضغط لتنفيذ: %1$s</string>
+    <string name="hf_tap_to_talk">اضغط وقل أمرك</string>
     <string name="retry">أعيد المحاولة</string>
     <string name="cancel">إلغاء</string>
 
