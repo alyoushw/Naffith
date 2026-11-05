@@ -11,12 +11,14 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.widget.ImageButton
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.naffith.app.core.Command
+import com.naffith.app.core.ChoiceMemory
 import com.naffith.app.core.CommandParser
 import com.naffith.app.core.Contact
 import com.naffith.app.core.ContactMatcher
@@ -31,6 +33,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var launcher: AppLauncher
     private lateinit var contactsRepository: ContactsRepository
+    private lateinit var choiceMemory: ChoiceMemory
 
     private var recognizer: SpeechRecognizer? = null
     private var isListening = false
@@ -91,8 +94,13 @@ class MainActivity : AppCompatActivity() {
 
         launcher = AppLauncher(this)
         contactsRepository = ContactsRepository(this)
+        choiceMemory = ChoiceMemory(PrefsStore(getSharedPreferences("choices", MODE_PRIVATE)))
 
         micButton.setOnClickListener { onMicClicked() }
+        micButton.setOnLongClickListener {
+            confirmForgetChoices()
+            true
+        }
     }
 
     override fun onPause() {
@@ -232,18 +240,18 @@ class MainActivity : AppCompatActivity() {
 
             is Command.WhatsApp ->
                 if (command.contactNames.isEmpty()) {
-                    askFollowUp(getString(R.string.ask_whatsapp_name)) { Command.WhatsApp(listOf(it)) }
+                    askFollowUp(getString(R.string.ask_whatsapp_name)) { Command.WhatsApp(CommandParser.parseName(it)) }
                 } else {
-                    resolveContact(command.contactNames, retry = { Command.WhatsApp(listOf(it)) }) { contact ->
+                    resolveContact(command.contactNames, retry = { Command.WhatsApp(CommandParser.parseName(it)) }) { contact ->
                         openWhatsApp(contact)
                     }
                 }
 
             is Command.Call ->
                 if (command.contactNames.isEmpty()) {
-                    askFollowUp(getString(R.string.ask_call_name)) { Command.Call(listOf(it)) }
+                    askFollowUp(getString(R.string.ask_call_name)) { Command.Call(CommandParser.parseName(it)) }
                 } else {
-                    resolveContact(command.contactNames, retry = { Command.Call(listOf(it)) }) { contact ->
+                    resolveContact(command.contactNames, retry = { Command.Call(CommandParser.parseName(it)) }) { contact ->
                         placeCall(contact)
                     }
                 }
@@ -275,8 +283,8 @@ class MainActivity : AppCompatActivity() {
                 when (which) {
                     0 -> execute(Command.OpenMaps(heard))
                     1 -> execute(Command.SearchYouTube(heard))
-                    2 -> execute(Command.Call(listOf(heard)))
-                    3 -> execute(Command.WhatsApp(listOf(heard)))
+                    2 -> execute(Command.Call(CommandParser.parseName(heard)))
+                    3 -> execute(Command.WhatsApp(CommandParser.parseName(heard)))
                     else -> startListeningWithPermission()
                 }
             }
@@ -302,23 +310,54 @@ class MainActivity : AppCompatActivity() {
                     setStatus(getString(R.string.no_contacts))
                     return@launch
                 }
+                // اختيار سابق للمستخدم لنفس الاسم يغلب كل شي.
+                choiceMemory.recall(names, contacts)?.let {
+                    onContact(it)
+                    return@launch
+                }
                 when (val result = ContactMatcher.match(names, contacts)) {
                     is MatchResult.Single -> onContact(result.contact)
-                    is MatchResult.Multiple -> chooseContact(result.matches.map { it.contact }, onContact)
-                    MatchResult.None -> contactNotFound(names.first(), retry)
+                    is MatchResult.Multiple ->
+                        chooseContact(getString(R.string.choose_contact), result.matches.map { it.contact }, names.first(), onContact)
+                    MatchResult.None -> {
+                        val suggestions = ContactMatcher.suggestions(names, contacts)
+                        if (suggestions.isEmpty()) contactNotFound(names.first(), retry)
+                        else chooseContact(
+                            getString(R.string.contact_not_found_suggest, names.first()),
+                            suggestions, names.first(), onContact, retry
+                        )
+                    }
                 }
             }
         }
     }
 
-    private fun chooseContact(contacts: List<Contact>, onContact: (Contact) -> Unit) {
-        setStatus(getString(R.string.choose_contact))
+    /** قائمة اختيار؛ اللي يختاره المستخدم ينحفظ للاسم اللي قاله، عشان المرة الجاية ما نسأله. */
+    private fun chooseContact(
+        title: String,
+        contacts: List<Contact>,
+        spokenName: String,
+        onContact: (Contact) -> Unit,
+        retry: ((String) -> Command)? = null,
+    ) {
+        setStatus(title)
         val labels = contacts.map { "${it.name}\n${it.number}" }.toTypedArray()
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.choose_contact)
-            .setItems(labels) { _, which -> onContact(contacts[which]) }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setItems(labels) { _, which ->
+                val chosen = contacts[which]
+                choiceMemory.remember(spokenName, chosen)
+                onContact(chosen)
+                Toast.makeText(this, getString(R.string.choice_saved, spokenName, chosen.name), Toast.LENGTH_SHORT).show()
+            }
             .setNegativeButton(R.string.cancel) { _, _ -> setStatus(getString(R.string.status_ready)) }
-            .show()
+        if (retry != null) {
+            dialog.setPositiveButton(R.string.retry) { _, _ ->
+                followUp = retry
+                startListeningWithPermission()
+            }
+        }
+        dialog.show()
     }
 
     private fun contactNotFound(name: String, retry: (String) -> Command) {
@@ -338,9 +377,12 @@ class MainActivity : AppCompatActivity() {
     private fun openWhatsApp(contact: Contact) {
         val installed = launcher.isWhatsAppInstalled()
         setStatus(getString(R.string.opening_whatsapp, contact.name))
-        when {
-            !launcher.openWhatsAppChat(contact.number) -> setStatus(getString(R.string.cannot_open))
-            !installed -> setStatus(getString(R.string.whatsapp_not_installed))
+        lifecycleScope.launch {
+            val entry = contactsRepository.findWhatsAppEntry(contact)
+            when {
+                !launcher.openWhatsAppChat(contact.number, entry) -> setStatus(getString(R.string.cannot_open))
+                !installed -> setStatus(getString(R.string.whatsapp_not_installed))
+            }
         }
     }
 
@@ -363,6 +405,19 @@ class MainActivity : AppCompatActivity() {
         } else {
             setStatus(getString(R.string.cannot_open))
         }
+    }
+
+    /** ضغطة طويلة على المايك: نسيان الاختيارات المحفوظة. */
+    private fun confirmForgetChoices() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.forget_title)
+            .setMessage(R.string.forget_message)
+            .setPositiveButton(R.string.forget_confirm) { _, _ ->
+                choiceMemory.forgetAll()
+                setStatus(getString(R.string.forget_done))
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     // ---------- الواجهة ----------

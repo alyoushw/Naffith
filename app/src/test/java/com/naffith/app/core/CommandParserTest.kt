@@ -131,4 +131,16 @@ class CommandParserTest {
         assertEquals("كلام غريب", text)
         assertEquals(Command.Unknown("كلام غريب"), cmd)
     }
+
+    // ---------- استخراج الاسم من الإعادة ----------
+
+    @Test fun parseNameFromRepeatedFullCommand() {
+        assertEquals("الجنوبي", CommandParser.parseName("افتح الواتساب محادثه الجنوبي").first())
+        assertEquals("خالد", CommandParser.parseName("اتصل على خالد").first())
+    }
+
+    @Test fun parseNameFromBareName() {
+        assertEquals("الجنوبي", CommandParser.parseName("الجنوبي").first())
+        assertEquals("أبو فهد", CommandParser.parseName("أبو فهد لو سمحت").first())
+    }
 }

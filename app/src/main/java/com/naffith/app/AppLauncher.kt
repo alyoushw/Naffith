@@ -38,10 +38,19 @@ class AppLauncher(private val context: Context) {
         return start(Intent(Intent.ACTION_VIEW, web))
     }
 
-    /** يرجع false إذا واتساب غير مثبت وما انفتح حتى بالمتصفح. */
-    fun openWhatsAppChat(number: String): Boolean {
+    /**
+     * يفتح محادثة واتساب. الأفضل عن طريق صف واتساب في جهة الاتصال (يفتح المحادثة نفسها
+     * دائماً)، وإلا برابط wa.me بالرقم الدولي. يرجع false إذا ما انفتح شي.
+     */
+    fun openWhatsAppChat(number: String, entry: ContactsRepository.WhatsAppEntry?): Boolean {
+        if (entry != null && isInstalled(entry.packageName)) {
+            val direct = Intent(Intent.ACTION_VIEW)
+                .setDataAndType(entry.dataUri, entry.mimeType)
+                .setPackage(entry.packageName)
+            if (start(direct)) return true
+        }
         val phone = PhoneNumbers.toInternational(number)
-        val uri = Uri.parse("https://api.whatsapp.com/send?phone=$phone")
+        val uri = Uri.parse("https://wa.me/$phone")
         val pkg = WHATSAPP_PACKAGES.firstOrNull { isInstalled(it) }
         if (pkg != null && start(Intent(Intent.ACTION_VIEW, uri).setPackage(pkg))) return true
         return start(Intent(Intent.ACTION_VIEW, uri))

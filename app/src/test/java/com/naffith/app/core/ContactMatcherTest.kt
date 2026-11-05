@@ -104,4 +104,56 @@ class ContactMatcherTest {
         assertEquals("966501234567", PhoneNumbers.toInternational("٠٥٠١٢٣٤٥٦٧"))
         assertEquals("201001234567", PhoneNumbers.toInternational("+20 100 123 4567"))
     }
+
+    // ---------- «ال» والعربي/الإنجليزي ----------
+
+    @Test fun articleIsIgnored() {
+        val janoubi = c("جنوبي")
+        assertEquals(janoubi, single(ContactMatcher.match(listOf("الجنوبي"), listOf(janoubi, c("خالد")))))
+    }
+
+    @Test fun arabicPartOfMixedName() {
+        val janoubi = c("الجنوبي HSN")
+        assertEquals(janoubi, single(ContactMatcher.match(listOf("الجنوبي"), listOf(janoubi, c("سارة")))))
+    }
+
+    @Test fun spelledEnglishLettersMatchAcronym() {
+        val janoubi = c("الجنوبي HSN")
+        val other = c("الجنوبي")
+        // «الجنوبي اتش اس ان» يطابق «الجنوبي HSN» تماماً، فيغلب «الجنوبي» لحاله.
+        assertEquals(janoubi, single(ContactMatcher.match(listOf("الجنوبي اتش اس ان"), listOf(janoubi, other))))
+        assertEquals(janoubi, single(ContactMatcher.match(listOf("اتش اس ان"), listOf(janoubi, c("فهد")))))
+    }
+
+    @Test fun arabicSpeechMatchesEnglishName() {
+        val mohammed = c("Mohammed")
+        assertEquals(mohammed, single(ContactMatcher.match(listOf("محمد"), listOf(mohammed, c("Sara")))))
+        val khalid = c("Khalid Alotaibi")
+        assertEquals(khalid, single(ContactMatcher.match(listOf("خالد"), listOf(khalid, c("Fahad")))))
+        val abdullah = c("Abdullah")
+        assertEquals(abdullah, single(ContactMatcher.match(listOf("عبدالله"), listOf(abdullah, c("Noura")))))
+    }
+
+    @Test fun englishSpeechMatchesArabicName() {
+        val fahad = c("فهد")
+        assertEquals(fahad, single(ContactMatcher.match(listOf("Fahad"), listOf(fahad, c("نورة")))))
+    }
+
+    @Test fun phoneticDoesNotMatchUnrelatedNames() {
+        assertEquals(MatchResult.None, ContactMatcher.match(listOf("محمد"), listOf(c("Sara"), c("Noura"))))
+    }
+
+    @Test fun suggestionsWhenNoMatch() {
+        val janoubi = c("أبو جنوب")
+        val contacts = listOf(janoubi, c("سارة"))
+        assertEquals(MatchResult.None, ContactMatcher.match(listOf("الجنوبي"), contacts))
+        val result = ContactMatcher.suggestions(listOf("الجنوبي"), contacts)
+        assertTrue(result.isNotEmpty())
+        assertEquals(janoubi, result.first())
+    }
+
+    @Test fun spelledLetterVariants() {
+        assertTrue("الجنوبي hsn" in Phonetics.spelledLetterVariants("الجنوبي اتش اس ان"))
+        assertTrue(Phonetics.spelledLetterVariants("ام محمد").isEmpty())
+    }
 }

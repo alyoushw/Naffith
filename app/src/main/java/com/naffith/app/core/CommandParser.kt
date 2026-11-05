@@ -48,6 +48,20 @@ object CommandParser {
         return first to Command.Unknown(first)
     }
 
+    /**
+     * يستخرج اسم جهة الاتصال من جواب المستخدم لما نسأله «على مين؟» أو يعيد المحاولة.
+     * لو أعاد الأمر كامل («افتح الواتساب محادثة الجنوبي») نأخذ الاسم منه بس، مو الجملة كلها.
+     */
+    fun parseName(text: String): List<String> {
+        when (val cmd = parse(text)) {
+            is Command.Call -> if (cmd.contactNames.isNotEmpty()) return cmd.contactNames
+            is Command.WhatsApp -> if (cmd.contactNames.isNotEmpty()) return cmd.contactNames
+            else -> {}
+        }
+        val tokens = stripFillers(ArabicText.tokenize(text))
+        return contactNames(tokens, whatsappWords).ifEmpty { listOf(text.trim()).filter { it.isNotEmpty() } }
+    }
+
     fun parse(text: String): Command {
         val tokens = stripFillers(ArabicText.tokenize(text))
         if (tokens.isEmpty()) return Command.Unknown(text)

@@ -14,25 +14,21 @@ sealed interface MatchResult {
 }
 
 /**
- * مطابقة تقريبية لأسماء جهات الاتصال العربية.
- * تتجاهل التشكيل والفروقات مثل أ/ا و ة/ه و ى/ي، والمسافات («عبدالله» = «عبد الله»)،
- * وتتسامح مع الأخطاء الإملائية البسيطة.
+ * مطابقة تقريبية لأسماء جهات الاتصال.
+ * - تتجاهل التشكيل والفروقات مثل أ/ا و ة/ه و ى/ي، والمسافات («عبدالله» = «عبد الله»).
+ * - تتجاهل «ال» التعريف («الجنوبي» = «جنوبي»).
+ * - تطابق بين العربي والإنجليزي («محمد» = Mohammed، «اتش اس ان» = HSN).
+ * - تتسامح مع الأخطاء البسيطة في النطق.
  */
 object ContactMatcher {
 
     const val THRESHOLD = 0.72
+    private const val SUGGESTION_THRESHOLD = 0.45
     private const val EXACT = 1.0
     private const val MAX_RESULTS = 10
 
     fun match(queries: List<String>, contacts: List<Contact>): MatchResult {
-        val usable = queries.map { ArabicText.normalize(it) }.filter { it.isNotEmpty() }
-        if (usable.isEmpty() || contacts.isEmpty()) return MatchResult.None
-
-        val scored = dedupe(contacts)
-            .map { c -> ContactMatch(c, usable.maxOf { q -> score(q, c.name) }) }
-            .filter { it.score >= THRESHOLD }
-            .sortedByDescending { it.score }
-
+        val scored = scoreAll(queries, contacts).filter { it.score >= THRESHOLD }
         return when {
             scored.isEmpty() -> MatchResult.None
             scored.size == 1 -> MatchResult.Single(scored[0].contact)
@@ -41,6 +37,28 @@ object ContactMatcher {
             else -> MatchResult.Multiple(scored.take(MAX_RESULTS))
         }
     }
+
+    /** أقرب الأسماء حتى لو ما وصلت حد التطابق، نعرضها كاقتراحات لما ما نلقى الاسم. */
+    fun suggestions(queries: List<String>, contacts: List<Contact>, limit: Int = 6): List<Contact> =
+        scoreAll(queries, contacts)
+            .filter { it.score >= SUGGESTION_THRESHOLD }
+            .take(limit)
+            .map { it.contact }
+
+    private fun scoreAll(queries: List<String>, contacts: List<Contact>): List<ContactMatch> {
+        val usable = expandQueries(queries)
+        if (usable.isEmpty() || contacts.isEmpty()) return emptyList()
+        return dedupe(contacts)
+            .map { c -> ContactMatch(c, usable.maxOf { q -> score(q, c.name) }) }
+            .sortedByDescending { it.score }
+    }
+
+    /** نضيف للطلب صيغته بالحروف المتهجّاة: «اتش اس ان» ← hsn. */
+    private fun expandQueries(queries: List<String>): List<String> =
+        queries.map { ArabicText.normalize(it) }
+            .filter { it.isNotEmpty() }
+            .flatMap { listOf(it) + Phonetics.spelledLetterVariants(it) }
+            .distinct()
 
     /** درجة التشابه بين ما قاله المستخدم واسم جهة الاتصال (0..1). */
     fun score(query: String, name: String): Double {
@@ -56,8 +74,12 @@ object ContactMatcher {
         val nTokens = n.split(" ")
         var best = 0.0
 
-        // كل كلمات الطلب موجودة في الاسم: «أحمد» ← «أحمد العتيبي».
-        if (qTokens.all { it in nTokens }) best = max(best, 0.92)
+        // نفس الاسم بعد تجاهل «ال»: «الجنوبي» = «جنوبي».
+        if (qTokens.map(::stripArticle) == nTokens.map(::stripArticle)) best = max(best, 0.97)
+
+        // كل كلمات الطلب موجودة في الاسم: «أحمد» ← «أحمد العتيبي»، «الجنوبي» ← «الجنوبي HSN».
+        val perToken = qTokens.map { qt -> nTokens.maxOf { tokenSimilarity(qt, it) } }
+        if (perToken.all { it >= 0.97 }) best = max(best, 0.92)
 
         // بداية الاسم: «أبو فه» ← «أبو فهد».
         if (qc.length >= 3 && nc.startsWith(qc)) best = max(best, 0.85)
@@ -66,10 +88,40 @@ object ContactMatcher {
         best = max(best, similarity(qc, nc) * 0.95)
 
         // تشابه كلمة بكلمة: كل كلمة في الطلب تشبه كلمة في الاسم.
-        val perToken = qTokens.map { qt -> nTokens.maxOf { similarity(qt, it) } }
         if (perToken.all { it >= 0.75 }) best = max(best, perToken.average() * 0.88)
 
         return best
+    }
+
+    /** تشابه كلمتين: نفس اللغة ← حروف، لغتين مختلفتين ← الهيكل الصوتي. */
+    internal fun tokenSimilarity(a: String, b: String): Double {
+        if (a == b) return 1.0
+        if (Phonetics.isLatin(a) == Phonetics.isLatin(b)) {
+            if (stripArticle(a) == stripArticle(b)) return 1.0
+            return max(similarity(a, b), similarity(stripArticle(a), stripArticle(b)))
+        }
+        var best = 0.0
+        for (x in listOf(a, stripArticle(a)).distinct()) for (y in listOf(b, stripArticle(b)).distinct()) {
+            val sx = Phonetics.skeleton(x)
+            val sy = Phonetics.skeleton(y)
+            if (sx.isEmpty() || sy.isEmpty()) continue
+            val s = when {
+                sx == sy && sx.length >= 3 -> 0.97
+                sx == sy && sx.length == 2 -> 0.9
+                sx == sy -> 0.8
+                min(sx.length, sy.length) >= 3 -> similarity(sx, sy) * 0.9
+                else -> 0.0
+            }
+            best = max(best, s)
+        }
+        return best
+    }
+
+    /** يحذف «ال» من بداية الكلمة (عربي) أو al/el (إنجليزي). */
+    private fun stripArticle(token: String): String = when {
+        token.length > 3 && token.startsWith("ال") -> token.substring(2)
+        token.length > 4 && (token.startsWith("al") || token.startsWith("el")) -> token.substring(2)
+        else -> token
     }
 
     /** 1 - (مسافة ليفنشتاين / طول أطول نص). */

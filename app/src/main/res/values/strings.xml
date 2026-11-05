@@ -4,7 +4,7 @@
     <string name="tagline">قول أمرك بالسعودي، وأنا أنفّذ</string>
     <string name="mic_description">اضغط وتكلم</string>
     <string name="transcript_placeholder">اضغط المايك وقل مثلاً: «اتصل على أبوي»</string>
-    <string name="examples">أمثلة:\n• افتح الخرائط وابحث عن أقرب صيدلية\n• شغل لي محمد عبده في يوتيوب\n• افتح محادثة مع سارة في الواتساب\n• دق على خالد</string>
+    <string name="examples">أمثلة:\n• افتح الخرائط وابحث عن أقرب صيدلية\n• شغل لي محمد عبده في يوتيوب\n• افتح محادثة مع سارة في الواتساب\n• دق على خالد\n\nإذا اخترت اسم من القائمة أحفظه للمرة الجاية. ضغطة طويلة على المايك تمسح الاختيارات المحفوظة.</string>
 
     <string name="status_ready">جاهز</string>
     <string name="status_listening">أسمعك… تكلم</string>
@@ -27,6 +27,12 @@
     <string name="contact_not_found_title">ما لقيت الاسم</string>
     <string name="contact_not_found">ما لقيت «%1$s» في جهات الاتصال. تبي تقول الاسم مرة ثانية؟</string>
     <string name="no_contacts">ما فيه جهات اتصال بأرقام على الجهاز.</string>
+    <string name="contact_not_found_suggest">ما لقيت «%1$s» بالضبط. تقصد واحد من هذول؟</string>
+    <string name="choice_saved">حفظت: «%1$s» = %2$s</string>
+    <string name="forget_title">نسيان الاختيارات</string>
+    <string name="forget_message">أنسى كل الأسماء اللي اخترتها من القوائم قبل؟</string>
+    <string name="forget_confirm">انسَ</string>
+    <string name="forget_done">نسيت كل الاختيارات المحفوظة.</string>
     <string name="choose_contact">لقيت أكثر من اسم، اختر واحد:</string>
 
     <string name="unclear_status">ما فهمت قصدك. سمعتك تقول النص اللي فوق، وضّح لي وش تبي؟</string>
