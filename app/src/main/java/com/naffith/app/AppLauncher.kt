@@ -19,6 +19,7 @@ class AppLauncher(
         const val MAPS_PACKAGE = "com.google.android.apps.maps"
         const val YOUTUBE_PACKAGE = "com.google.android.youtube"
         const val GEMINI_PACKAGE = "com.google.android.apps.bard"
+        const val GOOGLE_APP = "com.google.android.googlequicksearchbox"
         val WHATSAPP_PACKAGES = listOf("com.whatsapp", "com.whatsapp.w4b")
     }
 
@@ -58,6 +59,32 @@ class AppLauncher(
             context.packageManager.getLaunchIntentForPackage(GEMINI_PACKAGE)?.let { if (start(it)) return true }
         }
         return start(Intent(Intent.ACTION_VIEW, Uri.parse("https://gemini.google.com/app")))
+    }
+
+    /**
+     * يحاول يفتح نافذة Gemini الصوتية (مساعد Google) مثل لما Gemini يكون المساعد الافتراضي،
+     * وإذا ما زبط يفتح تطبيق Gemini.
+     */
+    fun openGeminiAssistant(): Boolean {
+        val attempts = listOf(
+            Intent("android.intent.action.VOICE_ASSIST").setPackage(GOOGLE_APP),
+            Intent(Intent.ACTION_VOICE_COMMAND).setPackage(GOOGLE_APP),
+            Intent(Intent.ACTION_ASSIST).setPackage(GOOGLE_APP),
+        )
+        for (intent in attempts) if (start(intent)) return true
+        return openGemini("")
+    }
+
+    /** يرسل صورة الشاشة (ومعها السؤال إذا فيه) لتطبيق Gemini. */
+    fun openGeminiWithImage(question: String, image: Uri): Boolean {
+        val share = Intent(Intent.ACTION_SEND)
+            .setType("image/jpeg")
+            .putExtra(Intent.EXTRA_STREAM, image)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        if (question.isNotBlank()) share.putExtra(Intent.EXTRA_TEXT, question)
+        if (isInstalled(GEMINI_PACKAGE) && start(Intent(share).setPackage(GEMINI_PACKAGE))) return true
+        // ما فيه Gemini: نخلي المستخدم يختار التطبيق (Google Lens مثلاً).
+        return start(Intent.createChooser(share, null))
     }
 
     /** بحث Google: كثير من الأسئلة المعلوماتية يجي جوابها مباشرة فوق النتائج. */

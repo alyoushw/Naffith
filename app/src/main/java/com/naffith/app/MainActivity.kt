@@ -32,6 +32,7 @@ import com.naffith.app.core.Contact
 import com.naffith.app.core.ContactMatcher
 import com.naffith.app.core.MatchResult
 import com.naffith.app.core.Places
+import com.naffith.app.core.ScreenWords
 import kotlinx.coroutines.launch
 
 /**
@@ -139,11 +140,27 @@ open class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
         answerText = findViewById(R.id.answerText)
-        // زر «اسأل Gemini» في نافذة المساعد: يفتح تطبيق Gemini (وسؤالك الأخير مكتوب فيه).
-        findViewById<android.view.View?>(R.id.geminiButton)?.setOnClickListener {
-            if (isListening) recognizer?.cancel()
-            setListening(false)
-            if (!launcher.openGemini(lastQuestion)) setStatus(getString(R.string.cannot_open))
+        // زر «اسأل Gemini»: يحاول يفتح نافذة Gemini الصوتية، وضغطة مطوّلة تفتح تطبيق Gemini بسؤالك الأخير.
+        findViewById<android.view.View?>(R.id.geminiButton)?.apply {
+            setOnClickListener {
+                stopListeningNow()
+                if (!launcher.openGeminiAssistant()) setStatus(getString(R.string.cannot_open))
+            }
+            setOnLongClickListener {
+                stopListeningNow()
+                if (!launcher.openGemini(lastQuestion)) setStatus(getString(R.string.cannot_open))
+                true
+            }
+        }
+        // زر «اسأل عن الشاشة»: تقول سؤالك، ويروح مع صورة الشاشة اللي كنت فيها.
+        findViewById<android.view.View?>(R.id.screenButton)?.setOnClickListener {
+            stopListeningNow()
+            if (ScreenContext.fresh() == null) {
+                showScreenshotHelp()
+                return@setOnClickListener
+            }
+            askAboutScreen = true
+            askFollowUp(getString(R.string.ask_screen_prompt)) { Command.Unknown(it) }
         }
 
         // نجهّز الصوت من بدري عشان الرد يطلع على طول.
@@ -572,6 +589,22 @@ open class MainActivity : AppCompatActivity() {
 
     private fun answerQuestion(text: String) {
         lastQuestion = text
+        // سؤال عن الشاشة؟ (ضغط «اسأل عن الشاشة» أو قال «وش هذا؟») ومعنا لقطة حديثة.
+        val screen = ScreenContext.fresh()?.takeIf { askAboutScreen || ScreenWords.mentionsScreen(text) }
+        askAboutScreen = false
+        if (screen != null) {
+            if (GeminiClient.apiKey(this).isNotBlank()) {
+                chat(text, ScreenContext.jpeg(screen))
+            } else {
+                setStatus(getString(R.string.opening_gemini))
+                val uri = runCatching { ScreenContext.shareUri(this, screen) }.getOrNull()
+                runUnlocked {
+                    val ok = if (uri != null) launcher.openGeminiWithImage(text, uri) else launcher.openGemini(text)
+                    if (!ok) setStatus(getString(R.string.cannot_open))
+                }
+            }
+            return
+        }
         when (GeminiClient.effectiveMode(this, launcher.isGeminiInstalled())) {
             GeminiClient.AnswerMode.IN_APP -> chat(text)
             GeminiClient.AnswerMode.GEMINI_APP -> {
@@ -588,6 +621,26 @@ open class MainActivity : AppCompatActivity() {
 
     /** آخر كلام مو أمر، نرسله لتطبيق Gemini لو ضغط زر «اسأل Gemini». */
     private var lastQuestion = ""
+
+    /** ضغط «اسأل عن الشاشة»: السؤال الجاي يروح مع صورة الشاشة. */
+    private var askAboutScreen = false
+
+    private fun stopListeningNow() {
+        if (isListening) recognizer?.cancel()
+        setListening(false)
+        followUp = null
+    }
+
+    private fun showScreenshotHelp() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.ask_screen)
+            .setMessage(R.string.ask_screen_help)
+            .setPositiveButton(R.string.open_settings) { _, _ ->
+                runCatching { startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)) }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
 
     /** فيه جواب سوالف ظاهر؟ (ما نسكّر النافذة ولا نمسحه لين يسأل شي ثاني). */
     private var answerShown = false
@@ -609,12 +662,12 @@ open class MainActivity : AppCompatActivity() {
     /** محادثة الجلسة الحالية، عشان Gemini يتذكر اللي قبل. */
     private val chatHistory = mutableListOf<GeminiClient.Turn>()
 
-    private fun chat(text: String) {
+    private fun chat(text: String, imageJpeg: ByteArray? = null) {
         unclearCount = 0
         chatHistory.add(GeminiClient.Turn(fromUser = true, text = text))
-        setStatus(getString(R.string.chat_thinking))
+        setStatus(getString(if (imageJpeg != null) R.string.chat_looking else R.string.chat_thinking))
         lifecycleScope.launch {
-            GeminiClient.reply(this@MainActivity, chatHistory)
+            GeminiClient.reply(this@MainActivity, chatHistory, imageJpeg)
                 .onSuccess { reply ->
                     chatHistory.add(GeminiClient.Turn(fromUser = false, text = reply))
                     // الجواب يبقى ظاهر في مكانه، والحالة تحت تتغير بدون ما تمسحه.

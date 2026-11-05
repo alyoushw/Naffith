@@ -14,6 +14,11 @@ class VoicePopupActivity : MainActivity() {
     override val isPopup = true
     override val layoutRes = R.layout.activity_voice_popup
 
+    companion object {
+        /** انفتحت من زر المساعد (فيه احتمال لقطة شاشة لـ«اسأل عن الشاشة»). */
+        const val EXTRA_FROM_ASSISTANT = "com.naffith.app.extra.FROM_ASSISTANT"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // الضغط برا البطاقة يسكّر النافذة.

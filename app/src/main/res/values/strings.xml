@@ -34,6 +34,10 @@
     <string name="chat_status_gemini_app">الأسئلة تنفتح في تطبيق Gemini وسؤالك مكتوب فيه.</string>
     <string name="chat_status_google">الأسئلة تنفتح في بحث Google.</string>
     <string name="ask_gemini">اسأل Gemini</string>
+    <string name="ask_screen">اسأل عن الشاشة</string>
+    <string name="ask_screen_prompt">وش تبي تعرف عن اللي في الشاشة؟</string>
+    <string name="chat_looking">لحظة أشوف الشاشة…</string>
+    <string name="ask_screen_help">ما وصلتني صورة الشاشة. عشان أقدر أشوفها:\n\n1. لازم «نفّذ» يكون المساعد الافتراضي، وتفتحه بالضغط المطوّل على زر الجنب وأنت في الشاشة اللي تبي تسأل عنها.\n2. في إعدادات المساعد الرقمي فعّل «استخدام لقطة الشاشة» (أو «تحليل النص على الشاشة»).</string>
     <string name="chat_more">تبي تسأل شي ثاني؟ تكلم…</string>
     <string name="opening_gemini">أفتح Gemini…</string>
     <string name="opening_google">أبحث في Google…</string>

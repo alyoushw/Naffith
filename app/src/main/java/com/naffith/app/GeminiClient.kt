@@ -77,17 +77,33 @@ object GeminiClient {
         else -> m
     }
 
-    /** يرسل [history] (آخرها كلام المستخدم) ويرجع رد Gemini جاهز للنطق. */
-    suspend fun reply(context: Context, history: List<Turn>): Result<String> = withContext(Dispatchers.IO) {
+    /**
+     * يرسل [history] (آخرها كلام المستخدم) ويرجع رد Gemini جاهز للنطق.
+     * [imageJpeg] صورة الشاشة لـ«اسأل عن الشاشة» (تنضاف لآخر رسالة).
+     */
+    suspend fun reply(context: Context, history: List<Turn>, imageJpeg: ByteArray? = null): Result<String> =
+        withContext(Dispatchers.IO) {
         runCatching {
             val key = apiKey(context)
             if (key.isBlank()) throw ChatError(R.string.chat_no_key)
             val contents = JSONArray()
-            for (turn in history.takeLast(20)) {
+            val turns = history.takeLast(20)
+            turns.forEachIndexed { i, turn ->
+                val parts = JSONArray().put(JSONObject().put("text", turn.text))
+                if (imageJpeg != null && i == turns.lastIndex && turn.fromUser) {
+                    parts.put(
+                        JSONObject().put(
+                            "inlineData",
+                            JSONObject()
+                                .put("mimeType", "image/jpeg")
+                                .put("data", android.util.Base64.encodeToString(imageJpeg, android.util.Base64.NO_WRAP))
+                        )
+                    )
+                }
                 contents.put(
                     JSONObject()
                         .put("role", if (turn.fromUser) "user" else "model")
-                        .put("parts", JSONArray().put(JSONObject().put("text", turn.text)))
+                        .put("parts", parts)
                 )
             }
             // ما نحط حد صغير للطول: موديلات Gemini الحديثة «تفكر» قبل الرد، والتفكير ينحسب من الحد،
