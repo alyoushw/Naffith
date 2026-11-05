@@ -31,6 +31,7 @@ import com.naffith.app.core.CommandParser
 import com.naffith.app.core.Contact
 import com.naffith.app.core.ContactMatcher
 import com.naffith.app.core.MatchResult
+import com.naffith.app.core.Places
 import kotlinx.coroutines.launch
 
 /**
@@ -193,6 +194,12 @@ open class MainActivity : AppCompatActivity() {
             unclearCount = 0
             showOverLockScreen(true)
             transcriptText.text = ""
+            if (!VoicePrefs.speakReplies(this)) {
+                // بدون صوت: نسمع على طول، تقدر تنطق الأمر مباشرة.
+                setStatus(getString(R.string.status_listening))
+                if (!isListening) startListeningWithPermission()
+                return
+            }
             setStatus(getString(R.string.hf_greeting))
             say(getString(R.string.hf_greeting)) { if (!isListening) startListeningWithPermission() }
             return
@@ -304,7 +311,7 @@ open class MainActivity : AppCompatActivity() {
 
     /** ننطق النص (لو جينا من «يا نفّذ»)، وبعد ما نخلص ننفذ [then]. */
     private fun say(text: String, then: (() -> Unit)? = null) {
-        if (!voiceMode) {
+        if (!voiceMode || !VoicePrefs.speakReplies(this)) {
             then?.let { micButton.postDelayed(it, 400) }
             return
         }
@@ -473,7 +480,12 @@ open class MainActivity : AppCompatActivity() {
 
     private fun execute(command: Command) {
         when (command) {
-            is Command.OpenMaps -> {
+            is Command.OpenMaps -> if (command.navigate && command.query.isNotBlank()) {
+                // «وجهني الى …»: الملاحة تبدأ على طول، و«المنزل» يروح للبيت المحفوظ.
+                val target = Places.navigationTarget(command.query)
+                setStatus(getString(R.string.navigating_to, command.query))
+                runUnlocked { if (!launcher.navigate(target)) setStatus(getString(R.string.cannot_open)) }
+            } else {
                 setStatus(
                     if (command.query.isBlank()) getString(R.string.opening_maps)
                     else getString(R.string.searching_maps, command.query)
@@ -504,7 +516,9 @@ open class MainActivity : AppCompatActivity() {
             is Command.WhatsApp -> when {
                 // «اكتب رسالة واتساب محمد الحفة هلا»: نفصل الاسم عن الرسالة حسب جهات الاتصال.
                 command.nameAndMessage.isNotBlank() -> withContacts { contacts ->
-                    val (name, message) = ContactMatcher.splitNameAndMessage(command.nameAndMessage, contacts)
+                    // الأسماء الثانية المحفوظة («روحي» ← أم محمد) تدخل في الفصل بعد.
+                    val aliases = choiceMemory.all().map { Contact("", it.spoken, it.number) }
+                    val (name, message) = ContactMatcher.splitNameAndMessage(command.nameAndMessage, contacts + aliases)
                     execute(command.copy(contactNames = listOf(name), message = message, nameAndMessage = ""))
                 }
 

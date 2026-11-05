@@ -47,22 +47,38 @@ object ContactMatcher {
 
     /**
      * يفصل الاسم عن الرسالة لما يجون ورا بعض: «محمد الحفة هلا» ← («محمد الحفة»، «هلا»).
-     * نجرّب كل تقسيمة ونختار الاسم اللي يطابق جهة اتصال أكثر (والأطول عند التعادل).
+     * نجرّب كل تقسيمة (ومعها الاسم كامل بدون رسالة) ونختار الاسم اللي يطابق جهة اتصال أكثر،
+     * والأطول عند التعادل. اللام أو الباء الملتصقة بأول كلمة («لروحي»، «لمحمد») نجرّبها
+     * مع وبدون. [contacts] تقدر تشمل الأسماء الثانية المحفوظة («روحي» ← أم محمد).
      */
     fun splitNameAndMessage(text: String, contacts: List<Contact>): Pair<String, String> {
         val words = text.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-        if (words.size < 2) return text.trim() to ""
-        var bestK = 1
+        if (words.isEmpty()) return "" to ""
+        val first = words[0]
+        val firstNorm = ArabicText.normalize(first)
+        val firstVariants = buildList {
+            add(first)
+            if (firstNorm.length > 2 && (firstNorm.startsWith("ل") || firstNorm.startsWith("ب"))) add(first.drop(1))
+        }
+
+        var best: Pair<String, String>? = null
         var bestScore = -1.0
-        for (k in 1 until words.size) {
-            val name = words.take(k).joinToString(" ")
-            val score = scoreAll(listOf(name), contacts).firstOrNull()?.score ?: 0.0
-            if (score >= THRESHOLD && score >= bestScore) {
-                bestScore = score
-                bestK = k
+        var bestK = 0
+        for (variant in firstVariants) {
+            val w = listOf(variant) + words.drop(1)
+            for (k in 1..w.size) {
+                val name = w.take(k).joinToString(" ")
+                val score = scoreAll(listOf(name), contacts).firstOrNull()?.score ?: 0.0
+                if (score < THRESHOLD) continue
+                if (score > bestScore + 1e-9 || (score >= bestScore - 1e-9 && k > bestK)) {
+                    bestScore = score
+                    bestK = k
+                    best = name to w.drop(k).joinToString(" ")
+                }
             }
         }
-        return words.take(bestK).joinToString(" ") to words.drop(bestK).joinToString(" ")
+        // ما طابق شي: أول كلمة اسم (بدون اللام الملتصقة) والباقي رسالة.
+        return best ?: (firstVariants.last() to words.drop(1).joinToString(" "))
     }
 
     private fun scoreAll(queries: List<String>, contacts: List<Contact>): List<ContactMatch> {

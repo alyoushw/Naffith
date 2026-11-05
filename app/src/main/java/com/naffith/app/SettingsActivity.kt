@@ -61,6 +61,11 @@ class SettingsActivity : AppCompatActivity() {
             runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         }
 
+        findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.speakSwitch).apply {
+            isChecked = VoicePrefs.speakReplies(this@SettingsActivity)
+            setOnCheckedChangeListener { _, checked -> VoicePrefs.setSpeakReplies(this@SettingsActivity, checked) }
+        }
+
         val group = findViewById<RadioGroup>(R.id.sensitivityGroup)
         group.check(
             when (VoicePrefs.sensitivity(this)) {

@@ -71,6 +71,15 @@
                 style="@style/SettingsHeader"
                 android:text="@string/voice_title" />
 
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/speakSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/speak_switch"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
             <TextView
                 android:id="@+id/voiceCurrent"
                 style="@style/SettingsHint" />

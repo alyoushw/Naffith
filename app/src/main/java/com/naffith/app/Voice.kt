@@ -15,6 +15,14 @@ object VoicePrefs {
     private const val PREFS = "settings"
     private const val KEY_VOICE = "tts_voice"
     private const val KEY_SENSITIVITY = "wake_sensitivity"
+    private const val KEY_SPEAK = "speak_replies"
+
+    /** يرد بالصوت («هلا بيك، أمرني» والأسئلة)؟ إذا لا، المساعد يسمع على طول بدون كلام. */
+    fun speakReplies(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SPEAK, true)
+
+    fun setSpeakReplies(context: Context, value: Boolean) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_SPEAK, value).apply()
 
     /** 0 = عادي، 1 = عالي، 2 = عالي جداً. */
     fun sensitivity(context: Context): Int =

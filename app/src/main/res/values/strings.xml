@@ -23,6 +23,8 @@
     <string name="assistant_toast">اختر «المساعد الرقمي» أو «تطبيق المساعد» ← نفّذ</string>
     <string name="voice_title">صوت الرد</string>
     <string name="voice_choose">اختيار الصوت</string>
+    <string name="speak_switch">الرد بالصوت\nإذا طفّيته: المساعد ما يتكلم، ويسمعك على طول أول ما تفتحه وتنطق الأمر مباشرة</string>
+    <string name="navigating_to">أوجّهك إلى «%1$s»…</string>
     <string name="voice_save">حفظ</string>
     <string name="voice_missing">ما لقيت صوت عربي. ثبّت «خدمات Google للكلام» ونزّل العربي من إعدادات تحويل النص إلى كلام.</string>
     <string name="voice_quality_best">أعلى جودة</string>

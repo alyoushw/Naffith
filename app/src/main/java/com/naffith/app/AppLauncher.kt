@@ -28,6 +28,20 @@ class AppLauncher(
         return start(Intent(Intent.ACTION_VIEW, web))
     }
 
+    /**
+     * يبدأ الملاحة على طول في خرائط Google (بالسيارة). خرائط Google تختار أنسب نتيجة للوجهة
+     * (مثلاً أقرب فرع للعثيم مول)، و«Home»/«Work» تروح للبيت/العمل المحفوظين.
+     */
+    fun navigate(destination: String): Boolean {
+        val nav = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + Uri.encode(destination) + "&mode=d"))
+        if (isInstalled(MAPS_PACKAGE) && start(nav.setPackage(MAPS_PACKAGE))) return true
+        val web = Uri.parse(
+            "https://www.google.com/maps/dir/?api=1&destination=" + Uri.encode(destination) +
+                "&travelmode=driving&dir_action=navigate"
+        )
+        return start(Intent(Intent.ACTION_VIEW, web))
+    }
+
     fun openYouTube(query: String): Boolean {
         if (query.isBlank()) {
             context.packageManager.getLaunchIntentForPackage(YOUTUBE_PACKAGE)?.let { if (start(it)) return true }

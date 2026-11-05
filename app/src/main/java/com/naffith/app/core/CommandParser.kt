@@ -14,7 +14,12 @@ object CommandParser {
     private val whatsappWords = setOf("واتساب", "واتس", "وتساب", "وتس", "واتسب", "whatsapp", "watsap", "واتسابي")
     private val youtubeWords = setOf("يوتيوب", "يوتوب", "يتيوب", "يوتيوبي", "youtube")
     private val mapsWords = setOf("خرايط", "خريطه", "ماب", "مابس", "maps", "map", "خرايطي")
-    private val navigationWords = setOf("ودني", "وديني", "وصلني", "خذني", "دلني", "وين", "مكان", "موقع", "طريق", "اتجاهات", "navigate")
+    /** كلمات التوجيه: تبدأ الملاحة على طول في خرائط Google. */
+    private val navigateWords = setOf(
+        "وجهني", "وجهيني", "ودني", "وديني", "وصلني", "خذني", "دلني", "اتجاهات", "navigate", "directions"
+    )
+    /** كلمات السؤال عن مكان: تعرض نتائج البحث في الخرائط. */
+    private val placeWords = setOf("وين", "مكان", "موقع", "طريق")
     private val callWords = setOf("اتصل", "اتصلي", "اتصال", "دق", "دقي", "كلم", "كلمي", "اضرب", "call", "تتصل", "اتصلوا")
     private val playWords = setOf("شغل", "شغلي", "شغللي")
 
@@ -87,8 +92,12 @@ object CommandParser {
         return when {
             has(whatsappWords) -> whatsApp(tokens)
             has(youtubeWords) -> Command.SearchYouTube(query(tokens, youtubeWords), play = has(playWords))
+            // «وجهني الى المنزل» / «افتح الخرائط ووديني العثيم مول»: ملاحة مباشرة.
+            has(navigateWords) -> Command.OpenMaps(navigationQuery(tokens), navigate = true)
             has(mapsWords) -> Command.OpenMaps(query(tokens, mapsWords))
-            has(navigationWords) -> Command.OpenMaps(query(tokens, navigationWords))
+            has(placeWords) -> Command.OpenMaps(query(tokens, placeWords))
+            // «ارسل لروحي هلا» بدون ذكر واتساب: الرسايل تروح واتساب.
+            isMessageToSomeone(tokens) -> whatsApp(tokens)
             has(callWords) -> Command.Call(contactNames(tokens, callWords))
             // «شغل لي أغنية…» بدون ذكر التطبيق ← نفترض يوتيوب، بشرط وجود شيء نبحث عنه.
             has(playWords) ->
@@ -134,15 +143,12 @@ object CommandParser {
             return Command.WhatsApp(contactNames(tokens.take(split), whatsappWords), message(tokens.drop(split + 1)), send)
         }
 
-        // 2) يبدأ بكلمة رسالة ثم «لـ<اسم>»: «قول لروحي بالواتساب هلا».
+        // 2) يبدأ بكلمة رسالة والاسم والرسالة ورا بعض:
+        //    «ارسل واتساب روحي هلا»، «افتح الواتساب ارسل لمحمد الحفة»، «قول لروحي بالواتساب هلا».
+        //    ما نعرف وين ينتهي الاسم إلا من جهات الاتصال، فنخليها للمطابقة
+        //    (انظر ContactMatcher.splitNameAndMessage).
         val rest = tokens.filterNot { isWord(it.normalized, whatsappWords) }
             .dropWhile { it.normalized in commonEdgeWords && !isMarker(it) }
-        if (rest.size >= 3 && isMarker(rest[0]) && rest[1].normalized.startsWith("ل") && rest[1].normalized.length > 2) {
-            val name = rest[1].original.drop(1)
-            return Command.WhatsApp(listOf(name), message(rest.drop(2)), send)
-        }
-
-        // 3) يبدأ بكلمة رسالة والاسم والرسالة ورا بعض: «اكتب رسالة واتساب محمد الحفة هلا».
         if (rest.isNotEmpty() && isMarker(rest[0])) {
             val body = rest.drop(1).dropWhile {
                 it.normalized in messageLeadWords || it.normalized in contactEdgeWords || it.normalized in commonEdgeWords
@@ -150,7 +156,7 @@ object CommandParser {
             if (body.size >= 2) {
                 return Command.WhatsApp(emptyList(), send = send, nameAndMessage = body.joinToString(" ") { it.original })
             }
-            if (body.size == 1) return Command.WhatsApp(listOf(body[0].original), send = send)
+            if (body.size == 1) return Command.WhatsApp(nameVariants(body), send = send)
         }
 
         return Command.WhatsApp(contactNames(tokens, whatsappWords), send = send)
@@ -206,8 +212,34 @@ object CommandParser {
         argumentTokens(tokens, appWords, commonEdgeWords + playWords)
             .joinToString(" ") { it.original }
 
+    /** «ارسل لروحي …» / «ابعث رسالة لخالد …» بدون ذكر التطبيق. */
+    private fun isMessageToSomeone(tokens: List<Token>): Boolean {
+        val rest = tokens.dropWhile { it.normalized in commonEdgeWords && !isMarker(it) }
+        if (rest.isEmpty() || !isMarker(rest[0]) || rest[0].normalized in setOf("تقول", "يقول", "مكتوب", "say")) return false
+        val target = rest.drop(1).dropWhile { it.normalized in messageLeadWords }.firstOrNull() ?: return false
+        return target.normalized.startsWith("ل") && target.normalized.length > 2 && target.normalized !in messageLeadWords
+    }
+
+    /** وجهة الملاحة: «وجهني الى المنزل» ← «المنزل»، «وديني للعثيم مول» ← «العثيم مول». */
+    private fun navigationQuery(tokens: List<Token>): String {
+        val rest = argumentTokens(tokens, mapsWords + navigateWords, commonEdgeWords - setOf("شغل", "شغلي")).toMutableList()
+        if (rest.isEmpty()) return ""
+        val first = rest[0]
+        val n = first.normalized
+        rest[0] = when {
+            n.startsWith("لل") && n.length > 3 -> Token("ال" + first.original.drop(2), "ال" + n.drop(2))
+            n.startsWith("ل") && n.length > 3 && !n.startsWith("لا") -> Token(first.original.drop(1), n.drop(1))
+            else -> first
+        }
+        return rest.joinToString(" ") { it.original }
+    }
+
     private fun contactNames(tokens: List<Token>, appWords: Set<String>): List<String> {
         val rest = argumentTokens(tokens, appWords + callWords, commonEdgeWords + contactEdgeWords)
+        return nameVariants(rest)
+    }
+
+    private fun nameVariants(rest: List<Token>): List<String> {
         if (rest.isEmpty()) return emptyList()
         val name = rest.joinToString(" ") { it.original }
         val result = mutableListOf(name)

@@ -4,7 +4,7 @@ package com.naffith.app.core
 sealed interface Command {
 
     /** فتح الخرائط والبحث عن مكان. [query] فارغ = فتح الخرائط فقط. */
-    data class OpenMaps(val query: String) : Command
+    data class OpenMaps(val query: String, val navigate: Boolean = false) : Command
 
     /**
      * فتح يوتيوب والبحث فيه. [query] فارغ = فتح يوتيوب فقط.

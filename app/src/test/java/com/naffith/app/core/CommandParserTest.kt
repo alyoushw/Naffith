@@ -27,8 +27,26 @@ class CommandParserTest {
     }
 
     @Test fun mapsNavigationWords() {
-        assertEquals(Command.OpenMaps("المطار"), parse("وديني المطار"))
+        assertEquals(Command.OpenMaps("المطار", navigate = true), parse("وديني المطار"))
         assertEquals(Command.OpenMaps("أقرب محطة بنزين"), parse("وين أقرب محطة بنزين"))
+    }
+
+    @Test fun navigateHome() {
+        val cmd = parse("افتح وجهني الى المنزل") as Command.OpenMaps
+        assertEquals(Command.OpenMaps("المنزل", navigate = true), cmd)
+        assertEquals("Home", Places.navigationTarget(cmd.query))
+    }
+
+    @Test fun navigateAttachedLam() {
+        assertEquals(Command.OpenMaps("العثيم مول", navigate = true), parse("وجهني للعثيم مول"))
+        assertEquals(Command.OpenMaps("مطعم البيك", navigate = true), parse("افتح الخرائط ووديني لمطعم البيك"))
+    }
+
+    @Test fun navigationTargets() {
+        assertEquals("Home", Places.navigationTarget("البيت"))
+        assertEquals("Home", Places.navigationTarget("بيتي"))
+        assertEquals("Work", Places.navigationTarget("الدوام"))
+        assertEquals("العثيم مول", Places.navigationTarget("العثيم مول"))
     }
 
     @Test fun mapsOnly() {
@@ -164,8 +182,7 @@ class CommandParserTest {
 
     @Test fun whatsappMessageFirstThenName() {
         val cmd = parse("قول لروحي بالواتساب هلا والله") as Command.WhatsApp
-        assertEquals(listOf("روحي"), cmd.contactNames)
-        assertEquals("هلا والله", cmd.message)
+        assertEquals("لروحي هلا والله", cmd.nameAndMessage)
     }
 
     @Test fun whatsappMessageTrailingAppWord() {
@@ -215,8 +232,44 @@ class CommandParserTest {
 
     @Test fun whatsappSendVerbFirst() {
         val cmd = parse("ارسل لروحي بالواتساب هلا والله") as Command.WhatsApp
-        assertEquals(listOf("روحي"), cmd.contactNames)
-        assertEquals("هلا والله", cmd.message)
+        assertEquals("لروحي هلا والله", cmd.nameAndMessage)
         assertEquals(true, cmd.send)
+    }
+
+    // ---------- دقة الاسم في رسايل واتساب (مع جهات الاتصال) ----------
+
+    private val contacts = listOf(
+        Contact("1", "روحي ❤️", "0501111111"),
+        Contact("2", "محمد الحفة", "0502222222"),
+        Contact("3", "محمد علي", "0503333333"),
+    )
+
+    /** يحلل الأمر ويفصل الاسم عن الرسالة مثل ما يسوي التطبيق. */
+    private fun resolve(text: String): Triple<String, String, Boolean> {
+        val cmd = parse(text) as Command.WhatsApp
+        if (cmd.nameAndMessage.isBlank()) return Triple(cmd.contactNames.last(), cmd.message, cmd.send)
+        val (name, message) = ContactMatcher.splitNameAndMessage(cmd.nameAndMessage, contacts)
+        return Triple(name, message, cmd.send)
+    }
+
+    @Test fun sendWhatsappNameThenMessage() {
+        assertEquals(Triple("روحي", "هلا", true), resolve("ارسل واتساب روحي هلا"))
+    }
+
+    @Test fun openWhatsappSendToFullName() {
+        assertEquals(Triple("محمد الحفة", "", true), resolve("افتح الواتساب ارسل لمحمد الحفة"))
+    }
+
+    @Test fun sendToSomeoneWithoutSayingWhatsapp() {
+        assertEquals(Triple("روحي", "هلا", true), resolve("ارسل لروحي هلا"))
+        assertEquals(Triple("محمد الحفة", "وينك", true), resolve("ارسل رسالة لمحمد الحفة وينك"))
+    }
+
+    @Test fun writeWithoutSend() {
+        assertEquals(Triple("روحي", "هلا والله", false), resolve("اكتب لروحي هلا والله"))
+    }
+
+    @Test fun messageVerbWithoutTargetIsNotWhatsapp() {
+        assertTrue(parse("قل لي نكتة") is Command.Unknown)
     }
 }
