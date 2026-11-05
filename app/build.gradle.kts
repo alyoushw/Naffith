@@ -11,8 +11,21 @@ android {
         applicationId = "com.naffith.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // رقم البناء في GitHub Actions يكبر مع كل بناء، عشان كل نسخة تحدّث اللي قبلها.
+        val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode = buildNumber
+        versionName = "1.0.$buildNumber"
+    }
+
+    signingConfigs {
+        // مفتاح debug ثابت في المستودع: بدونه كل بناء على GitHub يتوقّع بمفتاح جديد
+        // والجوال يرفض التحديث فوق النسخة القديمة.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {

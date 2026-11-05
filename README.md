@@ -64,11 +64,22 @@ app/src/main/java/com/naffith/app/
 ./gradlew assembleDebug       # الناتج: app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## تحميل التطبيق
+
+رابط مباشر لآخر نسخة (ملف APK بدون ضغط):
+
+**https://github.com/alyoushw/Naffith/releases/latest/download/Naffith.apk**
+
+افتحه من الجوال، وبعد التحميل اضغط على الملف وفعّل «السماح من هذا المصدر» ثم «تثبيت».
+النسخ الجديدة تتثبت فوق القديمة مباشرة (كل البناءات موقّعة بنفس المفتاح).
+
 ## GitHub Actions
 
 ملف `.github/workflows/build.yml` يشغّل الاختبارات ويبني APK عند كل push على `main`
-(وأيضاً على طلبات الدمج، ويدوياً من تبويب Actions)، ويرفع الملف كـ artifact باسم `naffith-debug-apk`.
-تقدر تنزّله من صفحة التشغيل في تبويب **Actions** ثم تثبّته على الجوال.
+(وأيضاً يدوياً من تبويب Actions، وعلى طلبات الدمج للتحقق فقط)، ثم:
+
+- ينشر **Release** جديد فيه `Naffith.apk` كرابط تحميل مباشر.
+- يرفع نفس الملف كـ artifact باسم `naffith-debug-apk` (يكون مضغوط zip، هذا سلوك GitHub).
 
 ## ملاحظات
 

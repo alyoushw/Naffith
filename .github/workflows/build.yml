@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write   # لإنشاء Release فيه ملف الـ APK
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,7 +28,9 @@ jobs:
         run: ./gradlew testDebugUnitTest --stacktrace
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          ./gradlew assembleDebug --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk Naffith.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -33,6 +38,21 @@ jobs:
           name: naffith-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      # رابط تحميل مباشر للـ APK (بدون zip): ينشئ Release جديد في كل بناء،
+      # والرابط releases/latest/download/Naffith.apk يشير دائماً لآخر نسخة.
+      - name: Publish release with APK
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: نفّذ 1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: Naffith.apk
+          body: |
+            حمّل `Naffith.apk` وثبّته على الجوال.
+            آخر نسخة دائماً على: https://github.com/${{ github.repository }}/releases/latest/download/Naffith.apk
 
       - name: Upload test reports
         if: failure()
