@@ -29,10 +29,15 @@ android {
         versionCode = buildNumber
         versionName = "1.0.$buildNumber"
 
-        // الجوالات الحقيقية بس (يصغّر حجم التطبيق).
+        // جوالات 64-bit بس (كل الجوالات الحديثة)، يصغّر حجم التطبيق للنص.
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            abiFilters += listOf("arm64-v8a")
         }
+    }
+
+    packaging {
+        // نضغط مكتبات المحرك داخل الـ APK (بدونها الحجم يتضاعف).
+        jniLibs.useLegacyPackaging = true
     }
 
     signingConfigs {

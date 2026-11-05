@@ -251,6 +251,7 @@ class HandsFreeService : Service() {
     }
 
     private fun vibrate() {
+        @Suppress("DEPRECATION")
         val v = getSystemService(VIBRATOR_SERVICE) as? Vibrator ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             v.vibrate(VibrationEffect.createOneShot(120, VibrationEffect.DEFAULT_AMPLITUDE))
