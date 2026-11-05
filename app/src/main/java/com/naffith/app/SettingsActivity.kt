@@ -208,38 +208,53 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun renderAliases() {
         aliasList.removeAllViews()
-        val aliases = memory.all()
-        aliasEmpty.visibility = if (aliases.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
-        for (alias in aliases) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(6), 0, dp(6))
+        val contactAliases = memory.all()
+        val apps = AppResolver(this)
+        val appAliases = apps.aliases()
+        aliasEmpty.visibility =
+            if (contactAliases.isEmpty() && appAliases.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+        for (alias in contactAliases) {
+            addAliasRow(getString(R.string.alias_row, alias.spoken, alias.contactName, alias.number)) {
+                confirmDelete(alias.spoken, alias.contactName) { memory.forget(alias) }
             }
-            val text = TextView(this).apply {
-                text = getString(R.string.alias_row, alias.spoken, alias.contactName, alias.number)
-                textSize = 16f
-                setTextColor(ContextCompat.getColor(context, R.color.text_primary))
-                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        // أسماء التطبيقات اللي اخترتها من القائمة («تيك» ← TikTok).
+        for (alias in appAliases) {
+            addAliasRow(getString(R.string.app_alias_row, alias.spoken, alias.label)) {
+                confirmDelete(alias.spoken, alias.label) { apps.forget(alias) }
             }
-            val delete = ImageButton(this).apply {
-                setImageResource(android.R.drawable.ic_menu_delete)
-                background = null
-                contentDescription = getString(R.string.alias_delete)
-                setOnClickListener { confirmDelete(alias) }
-            }
-            row.addView(text)
-            row.addView(delete)
-            aliasList.addView(row)
         }
     }
 
-    private fun confirmDelete(alias: ChoiceMemory.Alias) {
+    private fun addAliasRow(label: String, onDelete: () -> Unit) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+        }
+        val text = TextView(this).apply {
+            text = label
+            textSize = 16f
+            setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val delete = ImageButton(this).apply {
+            setImageResource(android.R.drawable.ic_menu_delete)
+            background = null
+            contentDescription = getString(R.string.alias_delete)
+            setOnClickListener { onDelete() }
+        }
+        row.addView(text)
+        row.addView(delete)
+        aliasList.addView(row)
+    }
+
+    private fun confirmDelete(spoken: String, target: String, forget: () -> Unit) {
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.alias_delete)
-            .setMessage(getString(R.string.alias_delete_confirm, alias.spoken, alias.contactName))
+            .setMessage(getString(R.string.alias_delete_confirm, spoken, target))
             .setPositiveButton(R.string.alias_delete) { _, _ ->
-                memory.forget(alias)
+                forget()
                 renderAliases()
             }
             .setNegativeButton(R.string.cancel, null)

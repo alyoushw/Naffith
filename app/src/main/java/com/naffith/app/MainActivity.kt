@@ -628,12 +628,35 @@ open class MainActivity : AppCompatActivity() {
         val resolver = AppResolver(this)
         val resolved = resolver.resolve(command.appName)
         if (resolved == null) {
-            val msg = getString(R.string.app_not_found, command.appName)
-            setStatus(msg)
-            say(msg)
-            closePopupSoon()
+            chooseApp(resolver, command)
             return
         }
+        launchResolved(resolver, resolved, command)
+    }
+
+    /** ما لقينا التطبيق: يختاره من القائمة (الأقرب فوق)، ونحفظ الاسم للمرة الجاية. */
+    private fun chooseApp(resolver: AppResolver, command: Command.OpenApp) {
+        val apps = resolver.ranked(command.appName).map { it.first }
+        if (apps.isEmpty()) {
+            setStatus(getString(R.string.app_not_found, command.appName))
+            return
+        }
+        val title = getString(R.string.app_choose, command.appName)
+        setStatus(title)
+        say(getString(R.string.app_not_found, command.appName))
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setItems(apps.map { it.label }.toTypedArray()) { _, which ->
+                val app = apps[which]
+                resolver.remember(command.appName, app)
+                Toast.makeText(this, getString(R.string.choice_saved, command.appName, app.label), Toast.LENGTH_SHORT).show()
+                launchResolved(resolver, AppResolver.Resolved(app, com.naffith.app.core.Apps.findKnown(command.appName)), command)
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> setStatus(getString(R.string.status_ready)) }
+            .show()
+    }
+
+    private fun launchResolved(resolver: AppResolver, resolved: AppResolver.Resolved, command: Command.OpenApp) {
         val label = resolved.app.label
         runUnlocked {
             when {
