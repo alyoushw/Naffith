@@ -27,7 +27,8 @@ object GeminiClient {
             "بجمل قصيرة وطبيعية تنقال بالصوت (من جملة إلى ثلاث جمل)، بدون تنسيق ولا رموز ولا قوائم ولا إيموجي. " +
             "إذا طلب شي يحتاج تطبيق (اتصال، واتساب، خرائط، يوتيوب) قل له يقولها كأمر مثل: «اتصل على فلان»."
 
-    class ChatError(val userMessage: Int) : Exception()
+    /** [detail] سبب تقني قصير (رمز HTTP أو سبب التوقف) نعرضه عشان نعرف وش صار. */
+    class ChatError(val userMessage: Int, val detail: String = "") : Exception(detail)
 
     data class Turn(val fromUser: Boolean, val text: String)
 
@@ -60,45 +61,78 @@ object GeminiClient {
                         .put("parts", JSONArray().put(JSONObject().put("text", turn.text)))
                 )
             }
+            // ما نحط حد صغير للطول: موديلات Gemini الحديثة «تفكر» قبل الرد، والتفكير ينحسب من الحد،
+            // فلو الحد صغير يخلص في التفكير ويرجع الرد فاضي. القِصَر نطلبه في التعليمات.
             val body = JSONObject()
                 .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", SYSTEM_PROMPT))))
                 .put("contents", contents)
-                .put("generationConfig", JSONObject().put("maxOutputTokens", 400).put("temperature", 0.8))
+                .put("generationConfig", JSONObject().put("maxOutputTokens", 4096).put("temperature", 0.8))
+                .toString()
 
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                connectTimeout = 10_000
-                readTimeout = 30_000
-                doOutput = true
-                setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                setRequestProperty("x-goog-api-key", key)
-            }
-            try {
-                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                val code = conn.responseCode
-                if (code != 200) {
-                    throw ChatError(
-                        when (code) {
-                            400, 401, 403 -> R.string.chat_bad_key
-                            404 -> R.string.chat_bad_model
-                            429 -> R.string.chat_quota
-                            else -> R.string.chat_failed
-                        }
-                    )
+            // السيرفر أحياناً يكون مضغوط (500/503): نعيد مرتين قبل ما نستسلم.
+            var lastError: ChatError? = null
+            repeat(3) { attempt ->
+                if (attempt > 0) Thread.sleep(1200L * attempt)
+                try {
+                    return@runCatching send(url, key, body)
+                } catch (e: ChatError) {
+                    lastError = e
+                    if (e.detail !in setOf("500", "502", "503", "504")) throw e
                 }
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                val parts = json.optJSONArray("candidates")?.optJSONObject(0)
-                    ?.optJSONObject("content")?.optJSONArray("parts") ?: throw ChatError(R.string.chat_failed)
-                val text = buildString {
-                    for (i in 0 until parts.length()) append(parts.optJSONObject(i)?.optString("text").orEmpty())
-                }
-                ChatText.forSpeech(text).ifBlank { throw ChatError(R.string.chat_failed) }
-            } finally {
-                conn.disconnect()
             }
+            throw lastError ?: ChatError(R.string.chat_failed)
         }.recoverCatching { e ->
             if (e is ChatError) throw e
-            throw ChatError(R.string.chat_network)
+            throw ChatError(R.string.chat_network, e.javaClass.simpleName)
+        }
+    }
+
+    private fun send(url: URL, key: String, body: String): String {
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 10_000
+            readTimeout = 45_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            setRequestProperty("x-goog-api-key", key)
+        }
+        try {
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            if (code != 200) {
+                val err = runCatching { conn.errorStream?.bufferedReader()?.use { it.readText() } }.getOrNull().orEmpty()
+                val apiMessage = runCatching { JSONObject(err).optJSONObject("error")?.optString("message") }.getOrNull()
+                    .orEmpty().take(120)
+                throw ChatError(
+                    when {
+                        code == 400 && apiMessage.contains("API key", ignoreCase = true) -> R.string.chat_bad_key
+                        code == 401 || code == 403 -> R.string.chat_bad_key
+                        code == 404 -> R.string.chat_bad_model
+                        code == 429 -> R.string.chat_quota
+                        else -> R.string.chat_failed
+                    },
+                    if (apiMessage.isBlank()) code.toString() else "$code: $apiMessage"
+                )
+            }
+            val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+            val candidate = json.optJSONArray("candidates")?.optJSONObject(0)
+            val parts = candidate?.optJSONObject("content")?.optJSONArray("parts")
+            val text = buildString {
+                if (parts != null) for (i in 0 until parts.length()) {
+                    val part = parts.optJSONObject(i) ?: continue
+                    if (part.optBoolean("thought", false)) continue // أفكار الموديل الداخلية مو للنطق
+                    append(part.optString("text"))
+                }
+            }
+            val clean = ChatText.forSpeech(text)
+            if (clean.isBlank()) {
+                val reason = candidate?.optString("finishReason").orEmpty()
+                    .ifBlank { json.optJSONObject("promptFeedback")?.optString("blockReason").orEmpty() }
+                throw ChatError(R.string.chat_failed, reason.ifBlank { "empty" })
+            }
+            return clean
+        } finally {
+            conn.disconnect()
         }
     }
 }

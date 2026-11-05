@@ -569,8 +569,11 @@ open class MainActivity : AppCompatActivity() {
                 }
                 .onFailure { e ->
                     chatHistory.removeLastOrNull()
-                    val msg = getString((e as? GeminiClient.ChatError)?.userMessage ?: R.string.chat_failed)
-                    setStatus(msg)
+                    val err = e as? GeminiClient.ChatError
+                    val msg = getString(err?.userMessage ?: R.string.chat_failed)
+                    // السبب التقني يظهر على الشاشة بس (يساعدنا نعرف المشكلة)، وما ينقال بالصوت.
+                    val detail = err?.detail?.takeIf { it.isNotBlank() }?.let { "\n($it)" }.orEmpty()
+                    setStatus(msg + detail)
                     say(msg)
                     closePopupSoon()
                 }
