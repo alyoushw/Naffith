@@ -40,17 +40,20 @@ class AppLauncher(private val context: Context) {
 
     /**
      * يفتح محادثة واتساب. الأفضل عن طريق صف واتساب في جهة الاتصال (يفتح المحادثة نفسها
-     * دائماً)، وإلا برابط wa.me بالرقم الدولي. يرجع false إذا ما انفتح شي.
+     * دائماً)، وإلا برابط api.whatsapp.com بالرقم الدولي. [message] ينكتب في خانة الكتابة جاهز
+     * تضغط إرسال. يرجع false إذا ما انفتح شي.
      */
-    fun openWhatsAppChat(number: String, entry: ContactsRepository.WhatsAppEntry?): Boolean {
-        if (entry != null && isInstalled(entry.packageName)) {
+    fun openWhatsAppChat(number: String, entry: ContactsRepository.WhatsAppEntry?, message: String = ""): Boolean {
+        // فتح المحادثة من جهة الاتصال ما يقبل نص جاهز، فمع الرسالة نستخدم الرابط.
+        if (message.isBlank() && entry != null && isInstalled(entry.packageName)) {
             val direct = Intent(Intent.ACTION_VIEW)
                 .setDataAndType(entry.dataUri, entry.mimeType)
                 .setPackage(entry.packageName)
             if (start(direct)) return true
         }
         val phone = PhoneNumbers.toInternational(number)
-        val uri = Uri.parse("https://wa.me/$phone")
+        val text = if (message.isBlank()) "" else "&text=" + Uri.encode(message)
+        val uri = Uri.parse("https://api.whatsapp.com/send?phone=$phone$text")
         val pkg = WHATSAPP_PACKAGES.firstOrNull { isInstalled(it) }
         if (pkg != null && start(Intent(Intent.ACTION_VIEW, uri).setPackage(pkg))) return true
         return start(Intent(Intent.ACTION_VIEW, uri))

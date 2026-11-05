@@ -4,7 +4,7 @@
     <string name="tagline">قول أمرك بالسعودي، وأنا أنفّذ</string>
     <string name="mic_description">اضغط وتكلم</string>
     <string name="transcript_placeholder">اضغط المايك وقل مثلاً: «اتصل على أبوي»</string>
-    <string name="examples">أمثلة:\n• افتح الخرائط وابحث عن أقرب صيدلية\n• شغل لي محمد عبده في يوتيوب\n• افتح محادثة مع سارة في الواتساب\n• دق على خالد\n\nإذا اخترت اسم من القائمة أحفظه للمرة الجاية. ضغطة طويلة على المايك تمسح الاختيارات المحفوظة.</string>
+    <string name="examples">أمثلة:\n• افتح الخرائط وابحث عن أقرب صيدلية\n• شغل لي محمد عبده في يوتيوب\n• افتح واتساب روحي اكتب هلا\n• دق على خالد\n\nإذا اخترت اسم من القائمة أحفظه للمرة الجاية. ضغطة طويلة على المايك تمسح الاختيارات المحفوظة.</string>
 
     <string name="status_ready">جاهز</string>
     <string name="status_listening">أسمعك… تكلم</string>
@@ -15,6 +15,11 @@
     <string name="searching_maps">أبحث في الخرائط عن «%1$s»</string>
     <string name="opening_youtube">أفتح يوتيوب…</string>
     <string name="searching_youtube">أبحث في يوتيوب عن «%1$s»</string>
+    <string name="writing_whatsapp">أكتب «%1$s» لـ %2$s في واتساب… اضغط إرسال</string>
+    <string name="unlock_needed">افتح قفل الجوال عشان أكمّل</string>
+    <string name="unlock_cancelled">ما انفتح القفل، ما قدرت أكمّل الأمر.</string>
+    <string name="hf_wake_heard">سمعتك! قل أمرك…</string>
+    <string name="hf_engine_failed">ما قدر محرك «يا نفّذ» يشتغل على جوالك.</string>
     <string name="opening_whatsapp">أفتح محادثة واتساب مع %1$s</string>
     <string name="calling">أتصل على %1$s…</string>
     <string name="dialing_instead">ما عندي إذن الاتصال المباشر، فتحت لك لوحة الاتصال برقم %1$s</string>
@@ -50,8 +55,8 @@
     <string name="perm_permanent_contacts">رفضت إذن جهات الاتصال نهائياً. فعّله من الإعدادات عشان أقدر أتصل أو أراسل.</string>
     <string name="open_settings">فتح الإعدادات</string>
 
-    <string name="hf_switch">وضع «يا نفّذ»\nيسمعك بدون ما تفتح التطبيق: «يا نفّذ اتصل على خالد»</string>
-    <string name="hf_enabled">تمام! قل «يا نفّذ» وبعدها أمرك، والشاشة شغالة.</string>
+    <string name="hf_switch">وضع «يا نفّذ»\nيسمعك حتى والجوال مقفول: قل «يا نفّذ»، استنى الهزّة، وقل أمرك</string>
+    <string name="hf_enabled">تمام! قل «يا نفّذ»، ولما يهز الجوال قل أمرك.</string>
     <string name="hf_disabled">طفّيت وضع «يا نفّذ».</string>
     <string name="hf_overlay_title">إذن الفتح من الخلفية</string>
     <string name="hf_overlay_message">عشان أفتح الخرائط أو أتصل وأنت برا التطبيق، أندرويد يحتاج إذن «الظهور فوق التطبيقات الأخرى» لـ«نفّذ».\n\nبدونه بأرسل لك إشعار تضغطه لتنفيذ الأمر.</string>
@@ -59,7 +64,7 @@
     <string name="hf_channel">وضع يا نفّذ</string>
     <string name="hf_alert_channel">أوامر يا نفّذ</string>
     <string name="hf_notification_title">نفّذ يسمعك</string>
-    <string name="hf_notification_text">قل «يا نفّذ» وبعدها أمرك</string>
+    <string name="hf_notification_text">قل «يا نفّذ» حتى والشاشة مطفية</string>
     <string name="hf_stop">إيقاف</string>
     <string name="hf_tap_to_run">اضغط لتنفيذ: %1$s</string>
     <string name="hf_tap_to_talk">اضغط وقل أمرك</string>

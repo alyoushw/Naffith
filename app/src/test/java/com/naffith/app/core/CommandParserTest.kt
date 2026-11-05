@@ -143,4 +143,42 @@ class CommandParserTest {
         assertEquals("الجنوبي", CommandParser.parseName("الجنوبي").first())
         assertEquals("أبو فهد", CommandParser.parseName("أبو فهد لو سمحت").first())
     }
+
+    // ---------- واتساب مع رسالة ----------
+
+    @Test fun whatsappWithMessage() {
+        assertEquals(Command.WhatsApp(listOf("روحي"), "هلا"), parse("افتح واتساب روحي اكتب هلا"))
+    }
+
+    @Test fun whatsappMessageWithLeadWord() {
+        val cmd = parse("راسل خالد بالواتس قل له وينك تأخرت") as Command.WhatsApp
+        assertEquals("خالد", cmd.contactNames.first())
+        assertEquals("وينك تأخرت", cmd.message)
+    }
+
+    @Test fun whatsappMessageAttachedBa() {
+        val cmd = parse("ارسل لروحي في الواتس اكتب أحبك") as Command.WhatsApp
+        assertEquals(listOf("لروحي", "روحي"), cmd.contactNames)
+        assertEquals("أحبك", cmd.message)
+    }
+
+    @Test fun whatsappMessageFirstThenName() {
+        val cmd = parse("قول لروحي بالواتساب هلا والله") as Command.WhatsApp
+        assertEquals(listOf("روحي"), cmd.contactNames)
+        assertEquals("هلا والله", cmd.message)
+    }
+
+    @Test fun whatsappMessageTrailingAppWord() {
+        val cmd = parse("كلم أبو فهد اكتب له السلام عليكم بالواتساب") as Command.WhatsApp
+        assertEquals("أبو فهد", cmd.contactNames.first())
+        assertEquals("السلام عليكم", cmd.message)
+    }
+
+    @Test fun whatsappSplitIntoTwoWords() {
+        assertEquals(Command.WhatsApp(listOf("روحي")), parse("افتح واتس اب روحي"))
+    }
+
+    @Test fun whatsappWithoutMessage() {
+        assertEquals("", (parse("افتح واتساب روحي") as Command.WhatsApp).message)
+    }
 }

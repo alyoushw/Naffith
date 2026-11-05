@@ -156,4 +156,11 @@ class ContactMatcherTest {
         assertTrue("الجنوبي hsn" in Phonetics.spelledLetterVariants("الجنوبي اتش اس ان"))
         assertTrue(Phonetics.spelledLetterVariants("ام محمد").isEmpty())
     }
+
+    @Test fun callNicknameContact() {
+        // «اتصل بروحي» ← جهة الاتصال «روحي ❤️».
+        val cmd = CommandParser.parse("اتصل بروحي") as Command.Call
+        val rouhi = c("روحي ❤️")
+        assertEquals(rouhi, single(ContactMatcher.match(cmd.contactNames, listOf(rouhi, c("روان")))))
+    }
 }

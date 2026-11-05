@@ -1,15 +1,19 @@
 package com.naffith.app
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.app.KeyguardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -143,6 +147,11 @@ class MainActivity : AppCompatActivity() {
         HandsFreeService.setAppVisible(false)
     }
 
+    override fun onStop() {
+        super.onStop()
+        showOverLockScreen(false)
+    }
+
     /** أوامر جاية من وضع «يا نفّذ» أو من زر الأوامر الصوتية في السماعة. */
     private fun handleLaunchIntent(intent: Intent?) {
         intent ?: return
@@ -155,7 +164,13 @@ class MainActivity : AppCompatActivity() {
             }
             intent.getBooleanExtra(EXTRA_START_LISTENING, false) ||
                 intent.action == Intent.ACTION_VOICE_COMMAND || intent.action == Intent.ACTION_ASSIST -> {
+                if (intent.getBooleanExtra(EXTRA_FROM_WAKE_WORD, false)) {
+                    showOverLockScreen(true)
+                    transcriptText.text = ""
+                    setStatus(getString(R.string.hf_wake_heard))
+                }
                 intent.removeExtra(EXTRA_START_LISTENING)
+                intent.removeExtra(EXTRA_FROM_WAKE_WORD)
                 intent.action = null
                 micButton.postDelayed({ if (!isListening) startListeningWithPermission() }, 400)
             }
@@ -183,7 +198,7 @@ class MainActivity : AppCompatActivity() {
                 HandsFreeService.start(this)
                 setSwitchChecked(true)
                 setStatus(getString(R.string.hf_enabled))
-                if (!Settings.canDrawOverlays(this)) askOverlayPermission()
+                if (!Settings.canDrawOverlays(this)) askOverlayPermission() else askIgnoreBatteryOptimizations()
             }
         }
     }
@@ -208,8 +223,20 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             }
-            .setNegativeButton(R.string.hf_overlay_later, null)
+            .setNegativeButton(R.string.hf_overlay_later) { _, _ -> askIgnoreBatteryOptimizations() }
             .show()
+    }
+
+    /** بعض الجوالات تقفل الخدمات في الخلفية لتوفير البطارية؛ نطلب استثناء «نفّذ». */
+    @SuppressLint("BatteryLife")
+    private fun askIgnoreBatteryOptimizations() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (pm.isIgnoringBatteryOptimizations(packageName)) return
+        runCatching {
+            startActivity(
+                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
+            )
+        }
     }
 
     private fun setSwitchChecked(checked: Boolean) {
@@ -336,7 +363,7 @@ class MainActivity : AppCompatActivity() {
                     if (command.query.isBlank()) getString(R.string.opening_maps)
                     else getString(R.string.searching_maps, command.query)
                 )
-                if (!launcher.openMaps(command.query)) setStatus(getString(R.string.cannot_open))
+                runUnlocked { if (!launcher.openMaps(command.query)) setStatus(getString(R.string.cannot_open)) }
             }
 
             is Command.SearchYouTube -> {
@@ -344,15 +371,18 @@ class MainActivity : AppCompatActivity() {
                     if (command.query.isBlank()) getString(R.string.opening_youtube)
                     else getString(R.string.searching_youtube, command.query)
                 )
-                if (!launcher.openYouTube(command.query)) setStatus(getString(R.string.cannot_open))
+                runUnlocked { if (!launcher.openYouTube(command.query)) setStatus(getString(R.string.cannot_open)) }
             }
 
             is Command.WhatsApp ->
                 if (command.contactNames.isEmpty()) {
-                    askFollowUp(getString(R.string.ask_whatsapp_name)) { Command.WhatsApp(CommandParser.parseName(it)) }
+                    askFollowUp(getString(R.string.ask_whatsapp_name)) {
+                        Command.WhatsApp(CommandParser.parseName(it), command.message)
+                    }
                 } else {
-                    resolveContact(command.contactNames, retry = { Command.WhatsApp(CommandParser.parseName(it)) }) { contact ->
-                        openWhatsApp(contact)
+                    val retry = { text: String -> Command.WhatsApp(CommandParser.parseName(text), command.message) }
+                    resolveContact(command.contactNames, retry = retry) { contact ->
+                        openWhatsApp(contact, command.message)
                     }
                 }
 
@@ -483,16 +513,50 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun openWhatsApp(contact: Contact) {
+    private fun openWhatsApp(contact: Contact, message: String) {
         val installed = launcher.isWhatsAppInstalled()
-        setStatus(getString(R.string.opening_whatsapp, contact.name))
+        setStatus(
+            if (message.isBlank()) getString(R.string.opening_whatsapp, contact.name)
+            else getString(R.string.writing_whatsapp, message, contact.name)
+        )
         lifecycleScope.launch {
             val entry = contactsRepository.findWhatsAppEntry(contact)
-            when {
-                !launcher.openWhatsAppChat(contact.number, entry) -> setStatus(getString(R.string.cannot_open))
-                !installed -> setStatus(getString(R.string.whatsapp_not_installed))
+            runUnlocked {
+                when {
+                    !launcher.openWhatsAppChat(contact.number, entry, message) -> setStatus(getString(R.string.cannot_open))
+                    !installed -> setStatus(getString(R.string.whatsapp_not_installed))
+                }
             }
         }
+    }
+
+    /** إذا الجوال مقفول (جينا من «يا نفّذ» والشاشة مطفية) نطلب فتح القفل قبل نفتح تطبيق ثاني. */
+    private fun runUnlocked(action: () -> Unit) {
+        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && km.isKeyguardLocked) {
+            setStatus(getString(R.string.unlock_needed))
+            km.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
+                override fun onDismissSucceeded() = action()
+                override fun onDismissCancelled() = setStatus(getString(R.string.unlock_cancelled))
+                override fun onDismissError() = setStatus(getString(R.string.unlock_cancelled))
+            })
+        } else {
+            action()
+        }
+    }
+
+    /** نطلع فوق قفل الشاشة ونشغّلها، بس لما نادانا «يا نفّذ». */
+    private fun showOverLockScreen(show: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(show)
+            setTurnScreenOn(show)
+        } else {
+            @Suppress("DEPRECATION")
+            val flags = WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            if (show) window.addFlags(flags) else window.clearFlags(flags)
+        }
+        if (show) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     /** اتصال مباشر إذا سمح المستخدم، وإلا نفتح لوحة الاتصال بالرقم. */
@@ -554,6 +618,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_COMMANDS = "com.naffith.app.extra.COMMANDS"
         const val EXTRA_START_LISTENING = "com.naffith.app.extra.START_LISTENING"
+        const val EXTRA_FROM_WAKE_WORD = "com.naffith.app.extra.FROM_WAKE_WORD"
         private const val LANGUAGE = "ar-SA"
         // ثوابت من API 31، نكتبها كأرقام عشان تشتغل مع minSdk 24.
         private const val ERROR_LANGUAGE_NOT_SUPPORTED = 12

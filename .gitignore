@@ -9,3 +9,4 @@ build/
 .cxx
 *.apk
 !gradle/wrapper/gradle-wrapper.jar
+app/libs/*.aar

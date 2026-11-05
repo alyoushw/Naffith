@@ -12,8 +12,9 @@ sealed interface Command {
     /**
      * فتح محادثة واتساب. [contactNames] احتمالات لاسم جهة الاتصال مرتبة حسب الأولوية
      * (مثلاً «بخالد» ثم «خالد»). القائمة الفارغة تعني أن الاسم لم يُذكر.
+     * [message] نص يُكتب في المحادثة جاهز للإرسال («افتح واتساب روحي اكتب هلا» ← «هلا»).
      */
-    data class WhatsApp(val contactNames: List<String>) : Command
+    data class WhatsApp(val contactNames: List<String>, val message: String = "") : Command
 
     /** الاتصال بجهة اتصال. نفس منطق [WhatsApp] للأسماء. */
     data class Call(val contactNames: List<String>) : Command

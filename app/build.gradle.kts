@@ -3,6 +3,19 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// محرك كلمة التنبيه «يا نفّذ» (sherpa-onnx، يشتغل بدون إنترنت). الملف كبير (~50MB)
+// فما نحطه في المستودع؛ ينزل تلقائياً أول مرة من صفحة إصدارات المشروع.
+val sherpaVersion = "2.0.1"
+val sherpaAar = file("libs/sherpa-onnx-$sherpaVersion.aar")
+if (!sherpaAar.exists()) {
+    sherpaAar.parentFile.mkdirs()
+    val tmp = File(sherpaAar.path + ".part")
+    val url = uri("https://github.com/k2-fsa/sherpa-onnx/releases/download/v$sherpaVersion/sherpa-onnx-$sherpaVersion.aar")
+    logger.lifecycle("Downloading $url")
+    url.toURL().openStream().use { input -> tmp.outputStream().use { input.copyTo(it) } }
+    tmp.renameTo(sherpaAar)
+}
+
 android {
     namespace = "com.naffith.app"
     compileSdk = 35
@@ -15,6 +28,11 @@ android {
         val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionCode = buildNumber
         versionName = "1.0.$buildNumber"
+
+        // الجوالات الحقيقية بس (يصغّر حجم التطبيق).
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     signingConfigs {
@@ -58,6 +76,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.google.android.material:material:1.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    implementation(files(sherpaAar))
 
     testImplementation("junit:junit:4.13.2")
 }

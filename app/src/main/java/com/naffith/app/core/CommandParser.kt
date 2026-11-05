@@ -32,6 +32,16 @@ object CommandParser {
         "كلم", "كلمي", "اتصل", "دق", "رقم", "جوال", "بجوال", "تلفون", "اسمه", "اسمها", "يا"
     )
 
+    /** كلمات تبدأ بعدها الرسالة: «اكتب هلا»، «قل له وينك». */
+    private val messageMarkers = setOf(
+        "اكتب", "اكتبي", "اكتبله", "اكتبلها", "اكتبلهم", "قل", "قله", "قلها", "قول", "قوله", "قولها", "قوليه",
+        "ارسل", "ارسله", "ارسلها", "ارسلي", "ابعث", "ابعثله", "ابعثلها", "رسل", "رسله", "بلغه", "بلغها",
+        "تقول", "يقول", "مكتوب", "نصها", "write", "say", "send"
+    )
+    /** كلمات تُحذف من بداية الرسالة: «اكتب له هلا» ← «هلا». */
+    private val messageLeadWords = setOf("له", "لها", "لهم", "ليه", "فيها", "رساله", "مسج", "انه", "انها")
+    private val messageTrailWords = setOf("في", "على", "ب", "عن", "من", "طريق")
+
     /** عبارات مجاملة تُحذف قبل التحليل. */
     private val fillerPhrases = listOf(
         "لو سمحت", "لو سمحتي", "من فضلك", "الله يعافيك", "الله يخليك", "الله يسعدك", "يا نفذ", "يا نافذ", "نفذ"
@@ -69,7 +79,7 @@ object CommandParser {
         fun has(words: Set<String>) = tokens.any { isWord(it.normalized, words) }
 
         return when {
-            has(whatsappWords) -> Command.WhatsApp(contactNames(tokens, whatsappWords))
+            has(whatsappWords) -> whatsApp(tokens)
             has(youtubeWords) -> Command.SearchYouTube(query(tokens, youtubeWords))
             has(mapsWords) -> Command.OpenMaps(query(tokens, mapsWords))
             has(navigationWords) -> Command.OpenMaps(query(tokens, navigationWords))
@@ -80,6 +90,51 @@ object CommandParser {
                     ?.let { Command.SearchYouTube(it) } ?: Command.Unknown(text)
             else -> Command.Unknown(text)
         }
+    }
+
+    private fun isMarker(t: Token) = t.normalized in messageMarkers ||
+        (t.normalized.startsWith("و") && t.normalized.drop(1) in messageMarkers)
+
+    /** كلمة لها معنى في جزء الاسم (مو اسم التطبيق ولا فعل ولا حرف جر). */
+    private fun isMeaningful(t: Token) = !isWord(t.normalized, whatsappWords) && !isMarker(t) &&
+        t.normalized !in commonEdgeWords && t.normalized !in contactEdgeWords &&
+        !(t.normalized.startsWith("و") && t.normalized.drop(1) in commonEdgeWords)
+
+    /**
+     * واتساب مع رسالة اختيارية:
+     * «افتح واتساب روحي اكتب هلا»، «راسل خالد بالواتس قل له وينك»، «قول لروحي بالواتساب هلا».
+     */
+    private fun whatsApp(all: List<Token>): Command.WhatsApp {
+        // «واتس اب» تنكتب أحياناً كلمتين.
+        val tokens = all.filterIndexed { i, t ->
+            !(t.normalized == "اب" && i > 0 && isWord(all[i - 1].normalized, whatsappWords))
+        }
+
+        // 1) فيه اسم ثم كلمة رسالة: كل اللي بعدها رسالة.
+        val split = tokens.indices.firstOrNull { i -> isMarker(tokens[i]) && tokens.take(i).any(::isMeaningful) }
+        if (split != null) {
+            return Command.WhatsApp(contactNames(tokens.take(split), whatsappWords), message(tokens.drop(split + 1)))
+        }
+
+        // 2) يبدأ بكلمة رسالة ثم «لـ<اسم>»: «قول لروحي بالواتساب هلا».
+        val rest = tokens.filterNot { isWord(it.normalized, whatsappWords) }
+            .dropWhile { it.normalized in commonEdgeWords && !isMarker(it) }
+        if (rest.size >= 3 && isMarker(rest[0]) && rest[1].normalized.startsWith("ل") && rest[1].normalized.length > 2) {
+            val name = rest[1].original.drop(1)
+            return Command.WhatsApp(listOf(name), message(rest.drop(2)))
+        }
+
+        return Command.WhatsApp(contactNames(tokens, whatsappWords))
+    }
+
+    private fun message(tokens: List<Token>): String {
+        val msg = tokens.toMutableList()
+        while (msg.isNotEmpty() && (msg.first().normalized in messageLeadWords || isMarker(msg.first()))) msg.removeAt(0)
+        // «… بالواتس» / «… في الواتساب» في آخر الجملة مو من الرسالة.
+        while (msg.isNotEmpty() && (isWord(msg.last().normalized, whatsappWords) || msg.last().normalized in messageTrailWords)) {
+            msg.removeAt(msg.size - 1)
+        }
+        return msg.joinToString(" ") { it.original }
     }
 
     /** هل الكلمة (أو الكلمة بعد حذف سابقة ملتصقة بها) ضمن المجموعة؟ */
