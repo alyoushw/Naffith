@@ -61,6 +61,8 @@ class SettingsActivity : AppCompatActivity() {
             runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         }
 
+        setupChat()
+
         findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.speakSwitch).apply {
             isChecked = VoicePrefs.speakReplies(this@SettingsActivity)
             setOnCheckedChangeListener { _, checked -> VoicePrefs.setSpeakReplies(this@SettingsActivity, checked) }
@@ -109,6 +111,45 @@ class SettingsActivity : AppCompatActivity() {
         tts?.shutdown()
         tts = null
         super.onDestroy()
+    }
+
+    // ---------- السوالف (Gemini) ----------
+
+    private fun setupChat() {
+        val switch = findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.chatSwitch)
+        val keyInput = findViewById<EditText>(R.id.chatKey)
+        val modelInput = findViewById<EditText>(R.id.chatModel)
+        switch.isChecked = GeminiClient.enabledSetting(this)
+        switch.setOnCheckedChangeListener { _, checked ->
+            GeminiClient.setEnabled(this, checked)
+            renderChat()
+        }
+        // ما نعرض المفتاح نفسه، بس نبيّن إنه محفوظ.
+        if (GeminiClient.apiKey(this).isNotBlank()) keyInput.hint = getString(R.string.chat_key_saved)
+        modelInput.setText(GeminiClient.model(this))
+        findViewById<MaterialButton>(R.id.chatSave).setOnClickListener {
+            val key = keyInput.text.toString().trim()
+            if (key.isNotEmpty()) GeminiClient.setApiKey(this, key)
+            GeminiClient.setModel(this, modelInput.text.toString().ifBlank { GeminiClient.DEFAULT_MODEL })
+            keyInput.setText("")
+            if (GeminiClient.apiKey(this).isNotBlank()) keyInput.hint = getString(R.string.chat_key_saved)
+            Toast.makeText(this, R.string.chat_saved_toast, Toast.LENGTH_SHORT).show()
+            renderChat()
+        }
+        findViewById<MaterialButton>(R.id.chatGetKey).setOnClickListener {
+            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/apikey"))) }
+        }
+        renderChat()
+    }
+
+    private fun renderChat() {
+        findViewById<TextView>(R.id.chatStatus).text = getString(
+            when {
+                GeminiClient.apiKey(this).isBlank() -> R.string.chat_status_no_key
+                GeminiClient.isEnabled(this) -> R.string.chat_status_on
+                else -> R.string.chat_status_off
+            }
+        )
     }
 
     // ---------- الأسماء الثانية ----------

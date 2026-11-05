@@ -45,6 +45,60 @@
                 android:text="@string/aliases_add" />
         </LinearLayout>
 
+        <!-- السوالف مع Gemini -->
+        <LinearLayout style="@style/SettingsCard">
+
+            <TextView
+                style="@style/SettingsHeader"
+                android:text="@string/chat_title" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/chatSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/chat_switch"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/chatStatus"
+                style="@style/SettingsHint" />
+
+            <EditText
+                android:id="@+id/chatKey"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:autofillHints="password"
+                android:hint="@string/chat_key_hint"
+                android:inputType="textPassword"
+                android:textDirection="ltr" />
+
+            <EditText
+                android:id="@+id/chatModel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/chat_model_hint"
+                android:importantForAutofill="no"
+                android:inputType="text"
+                android:textDirection="ltr" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/chatSave"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/chat_save" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/chatGetKey"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/chat_get_key" />
+        </LinearLayout>
+
         <!-- المساعد بدون مايك دائم -->
         <LinearLayout style="@style/SettingsCard">
 

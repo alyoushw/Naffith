@@ -544,7 +544,36 @@ open class MainActivity : AppCompatActivity() {
                     }
                 }
 
-            is Command.Unknown -> askForClarification(command.heard)
+            // مو أمر؟ إذا السوالف مفعّلة نسولف مع Gemini، وإلا نسأل وش يقصد.
+            is Command.Unknown ->
+                if (GeminiClient.isEnabled(this)) chat(command.heard) else askForClarification(command.heard)
+        }
+    }
+
+    // ---------- السوالف (Gemini) ----------
+
+    /** محادثة الجلسة الحالية، عشان Gemini يتذكر اللي قبل. */
+    private val chatHistory = mutableListOf<GeminiClient.Turn>()
+
+    private fun chat(text: String) {
+        unclearCount = 0
+        chatHistory.add(GeminiClient.Turn(fromUser = true, text = text))
+        setStatus(getString(R.string.chat_thinking))
+        lifecycleScope.launch {
+            GeminiClient.reply(this@MainActivity, chatHistory)
+                .onSuccess { reply ->
+                    chatHistory.add(GeminiClient.Turn(fromUser = false, text = reply))
+                    setStatus(reply)
+                    // في نافذة المساعد نكمّل السالفة: بعد ما يخلص الرد نسمعك مرة ثانية.
+                    say(reply) { if (voiceMode && !isListening && !isFinishing) startListeningWithPermission() }
+                }
+                .onFailure { e ->
+                    chatHistory.removeLastOrNull()
+                    val msg = getString((e as? GeminiClient.ChatError)?.userMessage ?: R.string.chat_failed)
+                    setStatus(msg)
+                    say(msg)
+                    closePopupSoon()
+                }
         }
     }
 
