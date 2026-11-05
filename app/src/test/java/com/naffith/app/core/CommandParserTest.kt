@@ -70,6 +70,38 @@ class CommandParserTest {
         assertEquals(Command.OpenMaps("مطعم البيك", navigate = true), parse("وجهني لمطعم البيك"))
     }
 
+    // ---------- فتح أي تطبيق ----------
+
+    @Test fun openKnownApp() {
+        assertEquals(Command.OpenApp("التيك توك"), parse("افتح التيك توك"))
+        assertEquals(Command.OpenApp("سناب"), parse("شغل سناب"))
+        assertEquals(Command.OpenApp("الكاميرا"), parse("افتح الكاميرا"))
+    }
+
+    @Test fun openAppAndSearch() {
+        assertEquals(Command.OpenApp("التيك توك", "مقاطع طبخ"), parse("افتح التيك توك وابحث عن مقاطع طبخ"))
+        assertEquals(Command.OpenApp("انستا", "قهوة مختصة"), parse("افتح لي انستا ودور لي قهوة مختصة"))
+        assertEquals(Command.OpenApp("التيك توك", "مطاعم الرياض"), parse("ابحث في التيك توك عن مطاعم الرياض"))
+        assertEquals(Command.OpenApp("تيك توك", "ضحك"), parse("ابحث لي في تيك توك ضحك"))
+    }
+
+    @Test fun openUnknownAppByName() {
+        assertEquals(Command.OpenApp("البنك الأهلي"), parse("افتح تطبيق البنك الأهلي"))
+    }
+
+    @Test fun builtInCommandsStillWin() {
+        assertEquals(Command.OpenMaps(""), parse("افتح الخرائط"))
+        assertEquals(Command.SearchYouTube(""), parse("افتح يوتيوب"))
+        assertTrue(parse("افتح الواتساب") is Command.WhatsApp)
+        assertEquals(Command.SearchYouTube("أغنية طلال", play = true), parse("شغل أغنية طلال"))
+    }
+
+    @Test fun appSearchUri() {
+        val tiktok = Apps.findKnown("التيك توك")!!
+        assertEquals("https://www.tiktok.com/search?q=%D8%B7%D8%A8%D8%AE", Apps.searchUri(tiktok, "طبخ"))
+        assertEquals(null, Apps.searchUri(Apps.findKnown("سناب")!!, "x"))
+    }
+
     @Test fun navigationTargets() {
         assertEquals("Home", Places.navigationTarget("البيت"))
         assertEquals("Home", Places.navigationTarget("بيتي"))

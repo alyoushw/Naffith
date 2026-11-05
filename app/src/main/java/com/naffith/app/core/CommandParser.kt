@@ -108,6 +108,8 @@ object CommandParser {
             has(youtubeWords) -> Command.SearchYouTube(query(tokens, youtubeWords), play = has(playWords))
             // «اتصل على البيت» اتصال، مو توجيه.
             has(callWords) -> Command.Call(contactNames(tokens, callWords))
+            // «افتح التيك توك وابحث عن …» / «ابحث في سناب عن …»: تطبيق معروف.
+            openApp(tokens, knownOnly = true) != null -> openApp(tokens, knownOnly = true)!!
             // «البيت» / «الدوام» لحالها: وديني هناك.
             tokens.size <= 2 && Places.navigationTarget(tokens.joinToString(" ") { it.original }) in setOf("Home", "Work") ->
                 Command.OpenMaps(tokens.joinToString(" ") { it.original }, navigate = true)
@@ -121,6 +123,8 @@ object CommandParser {
             isMessageToSomeone(tokens) -> whatsApp(tokens)
             // «أقرب مطعم» / «مطاعم قريبة» بدون فعل: بحث في الخرائط.
             has(nearWords) && has(placeNouns) -> Command.OpenMaps(query(tokens, emptySet()))
+            // «افتح <أي تطبيق>»: ندوّر عليه باسمه في الجوال.
+            openApp(tokens, knownOnly = false) != null -> openApp(tokens, knownOnly = false)!!
             // «شغل لي أغنية…» بدون ذكر التطبيق ← نفترض يوتيوب، بشرط وجود شيء نبحث عنه.
             has(playWords) ->
                 query(tokens, playWords).takeIf { it.isNotEmpty() }
@@ -233,6 +237,74 @@ object CommandParser {
     private fun query(tokens: List<Token>, appWords: Set<String>): String =
         argumentTokens(tokens, appWords, commonEdgeWords + playWords)
             .joinToString(" ") { it.original }
+
+    private val openVerbs = setOf(
+        "افتح", "افتحي", "افتحلي", "فتح", "ادخل", "دخلني", "شغل", "شغلي", "شغللي", "open", "launch"
+    )
+    private val inAppSearchVerbs = setOf(
+        "ابحث", "ابحثي", "ابحثلي", "دور", "دوري", "دورلي", "شوف", "شف", "شوفلي", "شفلي", "search", "find"
+    )
+    private val appFillers = setOf("لي", "تطبيق", "برنامج", "app")
+    private val queryLeadWords = setOf("لي", "فيه", "فيها", "عن", "على", "في", "داخله")
+    private val inWords = setOf("في", "على", "داخل", "ب", "in", "on")
+
+    private fun stripWaw(t: Token) = if (t.normalized.startsWith("و") && t.normalized.length > 2) t.normalized.drop(1) else t.normalized
+    private fun isOpenVerb(t: Token) = t.normalized in openVerbs || stripWaw(t) in openVerbs
+    private fun isInAppSearch(t: Token) = t.normalized in inAppSearchVerbs || stripWaw(t) in inAppSearchVerbs
+
+    /**
+     * «افتح التيك توك»، «افتح التيك توك وابحث عن طبخ»، «ابحث في التيك توك عن طبخ»، «شغل سناب».
+     * [knownOnly]: نقبل بس التطبيقات المعروفة (للفحص المبكر قبل أوامر الخرائط وغيرها).
+     */
+    private fun openApp(tokens: List<Token>, knownOnly: Boolean): Command.OpenApp? {
+        val start = tokens.indexOfFirst { !(it.normalized in commonEdgeWords && !isOpenVerb(it) && !isInAppSearch(it)) }
+        if (start < 0) return null
+        val first = tokens[start]
+        val rest = tokens.drop(start + 1)
+
+        fun queryFrom(ts: List<Token>) = ts.dropWhile { it.normalized in queryLeadWords }.joinToString(" ") { it.original }
+
+        // «ابحث (لي) في <تطبيق> (عن) <بحث>»: لازم التطبيق يكون معروف.
+        if (isInAppSearch(first)) {
+            val afterLi = rest.dropWhile { it.normalized == "لي" }
+            if (afterLi.isEmpty() || afterLi[0].normalized !in inWords) return null
+            val body = afterLi.drop(1)
+            val an = body.indexOfFirst { it.normalized == "عن" }
+            if (an > 0) {
+                val name = body.take(an).joinToString(" ") { it.original }
+                if (Apps.findKnown(name) == null) return null
+                return Command.OpenApp(name, queryFrom(body.drop(an + 1)))
+            }
+            val k = longestKnownPrefix(body) ?: return null
+            return Command.OpenApp(body.take(k).joinToString(" ") { it.original }, queryFrom(body.drop(k)))
+        }
+
+        if (!isOpenVerb(first)) return null
+        val afterVerb = rest.dropWhile { it.normalized in appFillers }
+        val split = afterVerb.indexOfFirst { isInAppSearch(it) || it.normalized == "عن" }
+        val appTokens = if (split >= 0) afterVerb.take(split) else afterVerb
+        val query = if (split >= 0) queryFrom(afterVerb.drop(split + 1)) else ""
+        if (appTokens.isEmpty()) return null
+
+        val name = appTokens.joinToString(" ") { it.original }
+        val known = Apps.findKnown(name)
+        if (known == null) {
+            // اسم مو معروف بدون فاصل: يمكن «افتح سناب طبخ»؟ نجرّب أطول بداية معروفة.
+            val k = longestKnownPrefix(appTokens)
+            if (k != null && split < 0) {
+                return Command.OpenApp(appTokens.take(k).joinToString(" ") { it.original }, queryFrom(appTokens.drop(k)))
+            }
+            if (knownOnly) return null
+            // «شغل …» بدون تطبيق معروف = يوتيوب، واسم التطبيق ما يكون جملة طويلة.
+            if (first.normalized.startsWith("شغل") || stripWaw(first).startsWith("شغل")) return null
+            if (appTokens.size > 4) return null
+        }
+        return Command.OpenApp(name, query)
+    }
+
+    /** طول أطول بداية من [ts] اسمها تطبيق معروف (حتى 3 كلمات). */
+    private fun longestKnownPrefix(ts: List<Token>): Int? =
+        (minOf(3, ts.size) downTo 1).firstOrNull { k -> Apps.findKnown(ts.take(k).joinToString(" ") { it.original }) != null }
 
     /** «ارسل لروحي …» / «ابعث رسالة لخالد …» بدون ذكر التطبيق. */
     private fun isMessageToSomeone(tokens: List<Token>): Boolean {

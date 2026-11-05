@@ -34,6 +34,11 @@
     <string name="chat_status_gemini_app">الأسئلة تنفتح في تطبيق Gemini وسؤالك مكتوب فيه.</string>
     <string name="chat_status_google">الأسئلة تنفتح في بحث Google.</string>
     <string name="ask_gemini">اسأل Gemini</string>
+    <string name="app_not_found">ما لقيت تطبيق اسمه «%1$s» في جوالك.</string>
+    <string name="opening_app">أفتح %1$s…</string>
+    <string name="searching_in_app">أبحث عن «%1$s» في %2$s…</string>
+    <string name="app_no_search">%1$s ما يسمح بالبحث من برا، فتحته لك.</string>
+    <string name="assistant_shortcut_label">مساعد نفّذ</string>
     <string name="ask_screen">اسأل عن الشاشة</string>
     <string name="ask_screen_prompt">وش تبي تعرف عن اللي في الشاشة؟</string>
     <string name="chat_looking">لحظة أشوف الشاشة…</string>

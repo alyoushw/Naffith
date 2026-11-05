@@ -582,8 +582,39 @@ open class MainActivity : AppCompatActivity() {
                     }
                 }
 
+            is Command.OpenApp -> openApp(command)
+
             // مو أمر؟ سؤال أو سالفة: يجاوبه Gemini (داخل نفّذ أو تطبيقه) أو Google، حسب الإعدادات.
             is Command.Unknown -> answerQuestion(command.heard)
+        }
+    }
+
+    /** «افتح التيك توك (وابحث عن …)» وأي تطبيق ثاني بالاسم. */
+    private fun openApp(command: Command.OpenApp) {
+        val resolver = AppResolver(this)
+        val resolved = resolver.resolve(command.appName)
+        if (resolved == null) {
+            val msg = getString(R.string.app_not_found, command.appName)
+            setStatus(msg)
+            say(msg)
+            closePopupSoon()
+            return
+        }
+        val label = resolved.app.label
+        runUnlocked {
+            when {
+                command.query.isBlank() -> {
+                    setStatus(getString(R.string.opening_app, label))
+                    if (!resolver.launch(resolved.app)) setStatus(getString(R.string.cannot_open))
+                }
+                resolver.search(resolved, command.query) ->
+                    setStatus(getString(R.string.searching_in_app, command.query, label))
+                else -> {
+                    // التطبيق ما يدعم البحث برابط: نفتحه على الأقل.
+                    setStatus(getString(R.string.app_no_search, label))
+                    if (!resolver.launch(resolved.app)) setStatus(getString(R.string.cannot_open))
+                }
+            }
         }
     }
 

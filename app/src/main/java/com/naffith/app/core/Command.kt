@@ -30,6 +30,12 @@ sealed interface Command {
     /** الاتصال بجهة اتصال. نفس منطق [WhatsApp] للأسماء. */
     data class Call(val contactNames: List<String>) : Command
 
+    /**
+     * فتح أي تطبيق في الجوال باسمه («افتح التيك توك»)، و[query] بحث داخله إذا طلبه
+     * («افتح التيك توك وابحث عن طبخ»).
+     */
+    data class OpenApp(val appName: String, val query: String = "") : Command
+
     /** أمر غير مفهوم، مع النص الذي سُمع. */
     data class Unknown(val heard: String) : Command
 }

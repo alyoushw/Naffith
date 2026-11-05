@@ -21,6 +21,9 @@ class VoicePopupActivity : MainActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // «اسأل عن الشاشة» يحتاج لقطة الشاشة اللي يعطيها النظام للمساعد الافتراضي بس.
+        updateScreenButton(intent)
+
         // الضغط برا البطاقة يسكّر النافذة.
         findViewById<View>(R.id.popupRoot).setOnClickListener { finish() }
         findViewById<View>(R.id.popupCard).setOnClickListener { }
@@ -36,6 +39,16 @@ class VoicePopupActivity : MainActivity() {
                 start()
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        updateScreenButton(intent)
+    }
+
+    private fun updateScreenButton(intent: android.content.Intent?) {
+        val fromAssistant = intent?.getBooleanExtra(EXTRA_FROM_ASSISTANT, false) == true
+        findViewById<View>(R.id.screenButton).visibility = if (fromAssistant) View.VISIBLE else View.GONE
     }
 
     override fun finish() {
