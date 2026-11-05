@@ -45,6 +45,51 @@
                 android:text="@string/aliases_add" />
         </LinearLayout>
 
+        <!-- البيت والدوام -->
+        <LinearLayout style="@style/SettingsCard">
+
+            <TextView
+                style="@style/SettingsHeader"
+                android:text="@string/places_title" />
+
+            <TextView
+                style="@style/SettingsHint"
+                android:text="@string/places_hint" />
+
+            <TextView
+                android:id="@+id/homeStatus"
+                style="@style/SettingsHint" />
+
+            <EditText
+                android:id="@+id/homeInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/places_home_hint"
+                android:importantForAutofill="no"
+                android:inputType="textUri"
+                android:textDirection="ltr" />
+
+            <TextView
+                android:id="@+id/workStatus"
+                style="@style/SettingsHint" />
+
+            <EditText
+                android:id="@+id/workInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/places_work_hint"
+                android:importantForAutofill="no"
+                android:inputType="textUri"
+                android:textDirection="ltr" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/placesSave"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/chat_save" />
+        </LinearLayout>
+
         <!-- السوالف مع Gemini -->
         <LinearLayout style="@style/SettingsCard">
 

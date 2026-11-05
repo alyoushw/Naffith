@@ -42,6 +42,16 @@ class CommandParserTest {
         assertEquals(Command.OpenMaps("مطعم البيك", navigate = true), parse("افتح الخرائط ووديني لمطعم البيك"))
     }
 
+    @Test fun searchNearestIsNotNavigation() {
+        assertEquals(Command.OpenMaps("اقرب مطعم"), parse("ابحث لي عن اقرب مطعم"))
+        assertEquals(Command.OpenMaps("صيدلية قريبة"), parse("دور لي صيدلية قريبة"))
+        assertEquals(Command.OpenMaps("أقرب كافيه", navigate = false), parse("ابحث في الخرائط عن أقرب كافيه"))
+    }
+
+    @Test fun navigateToSpecificPlace() {
+        assertEquals(Command.OpenMaps("مطعم البيك", navigate = true), parse("وجهني لمطعم البيك"))
+    }
+
     @Test fun navigationTargets() {
         assertEquals("Home", Places.navigationTarget("البيت"))
         assertEquals("Home", Places.navigationTarget("بيتي"))

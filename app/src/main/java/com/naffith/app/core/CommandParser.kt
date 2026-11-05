@@ -20,6 +20,15 @@ object CommandParser {
     )
     /** كلمات السؤال عن مكان: تعرض نتائج البحث في الخرائط. */
     private val placeWords = setOf("وين", "مكان", "موقع", "طريق")
+
+    /** «ابحث/دور … عن أقرب مطعم»: بحث في الخرائط (نتائج تختار منها)، مو توجيه. */
+    private val searchVerbs = setOf("ابحث", "ابحثي", "ابحثلي", "دور", "دوري", "دورلي", "طلعلي", "وريني", "ورني", "اعرض", "اعرضلي", "search", "find")
+    private val nearWords = setOf("اقرب", "قريب", "قريبه", "قريبين", "حولي", "جنبي", "nearest", "near")
+    private val placeNouns = setOf(
+        "مطعم", "مطاعم", "صيدليه", "صيدليات", "محطه", "محطات", "بنزينه", "كافيه", "كوفي", "مقهي", "مستشفي",
+        "مستوصف", "مول", "سوبرماركت", "بقاله", "مسجد", "جامع", "بنك", "صراف", "فندق", "مغسله", "حلاق",
+        "مخبز", "مطار", "مدرسه", "حديقه", "بارك", "مقاهي", "كافيهات", "restaurant", "cafe", "pharmacy"
+    )
     private val callWords = setOf("اتصل", "اتصلي", "اتصال", "دق", "دقي", "كلم", "كلمي", "اضرب", "call", "تتصل", "اتصلوا")
     private val playWords = setOf("شغل", "شغلي", "شغللي")
 
@@ -99,6 +108,8 @@ object CommandParser {
             // «ارسل لروحي هلا» بدون ذكر واتساب: الرسايل تروح واتساب.
             isMessageToSomeone(tokens) -> whatsApp(tokens)
             has(callWords) -> Command.Call(contactNames(tokens, callWords))
+            // «ابحث لي عن أقرب مطعم»: بحث في خرائط Google بدون توجيه.
+            has(searchVerbs) && (has(nearWords) || has(placeNouns)) -> Command.OpenMaps(query(tokens, emptySet()))
             // «شغل لي أغنية…» بدون ذكر التطبيق ← نفترض يوتيوب، بشرط وجود شيء نبحث عنه.
             has(playWords) ->
                 query(tokens, playWords).takeIf { it.isNotEmpty() }

@@ -18,6 +18,8 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.naffith.app.core.ChoiceMemory
@@ -62,6 +64,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         setupChat()
+        setupPlaces()
 
         findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.speakSwitch).apply {
             isChecked = VoicePrefs.speakReplies(this@SettingsActivity)
@@ -111,6 +114,40 @@ class SettingsActivity : AppCompatActivity() {
         tts?.shutdown()
         tts = null
         super.onDestroy()
+    }
+
+    // ---------- البيت والدوام ----------
+
+    private fun setupPlaces() {
+        val homeInput = findViewById<EditText>(R.id.homeInput)
+        val workInput = findViewById<EditText>(R.id.workInput)
+        findViewById<MaterialButton>(R.id.placesSave).setOnClickListener {
+            val home = homeInput.text.toString()
+            val work = workInput.text.toString()
+            lifecycleScope.launch {
+                var saved = false
+                if (home.isNotBlank()) saved = SavedPlaces.save(this@SettingsActivity, SavedPlaces.Kind.HOME, home) != null || saved
+                if (work.isNotBlank()) saved = SavedPlaces.save(this@SettingsActivity, SavedPlaces.Kind.WORK, work) != null || saved
+                homeInput.setText("")
+                workInput.setText("")
+                renderPlaces()
+                Toast.makeText(
+                    this@SettingsActivity,
+                    if (saved) R.string.chat_saved_toast else R.string.places_nothing,
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+        renderPlaces()
+    }
+
+    private fun renderPlaces() {
+        fun label(kind: SavedPlaces.Kind, title: Int) = SavedPlaces.destination(this, kind).let {
+            if (it.isBlank()) getString(R.string.places_not_set, getString(title))
+            else getString(R.string.places_set, getString(title), it)
+        }
+        findViewById<TextView>(R.id.homeStatus).text = label(SavedPlaces.Kind.HOME, R.string.places_home)
+        findViewById<TextView>(R.id.workStatus).text = label(SavedPlaces.Kind.WORK, R.string.places_work)
     }
 
     // ---------- السوالف (Gemini) ----------

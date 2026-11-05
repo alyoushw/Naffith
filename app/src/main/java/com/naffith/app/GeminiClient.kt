@@ -28,7 +28,11 @@ object GeminiClient {
             "إذا طلب شي يحتاج تطبيق (اتصال، واتساب، خرائط، يوتيوب) قل له يقولها كأمر مثل: «اتصل على فلان»."
 
     /** [detail] سبب تقني قصير (رمز HTTP أو سبب التوقف) نعرضه عشان نعرف وش صار. */
-    class ChatError(val userMessage: Int, val detail: String = "") : Exception(detail)
+    class ChatError(val userMessage: Int, val detail: String = "", val code: Int = 0) : Exception(detail)
+
+    /** موديلات بديلة لما يكون الموديل الأساسي مضغوط. */
+    private val FALLBACK_MODELS = listOf("gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-2.5-flash-lite")
+    private val RETRYABLE = setOf(404, 429, 500, 502, 503, 504)
 
     data class Turn(val fromUser: Boolean, val text: String)
 
@@ -50,9 +54,6 @@ object GeminiClient {
         runCatching {
             val key = apiKey(context)
             if (key.isBlank()) throw ChatError(R.string.chat_no_key)
-            val model = URLEncoder.encode(model(context), "UTF-8")
-            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
-
             val contents = JSONArray()
             for (turn in history.takeLast(20)) {
                 contents.put(
@@ -69,18 +70,28 @@ object GeminiClient {
                 .put("generationConfig", JSONObject().put("maxOutputTokens", 4096).put("temperature", 0.8))
                 .toString()
 
-            // السيرفر أحياناً يكون مضغوط (500/503): نعيد مرتين قبل ما نستسلم.
+            // إذا الموديل مضغوط (503) أو خلص حده (429) أو مو موجود (404)، نجرّب موديل ثاني تلقائياً،
+            // وكل موديل نعطيه محاولتين.
+            val models = (listOf(model(context)) + FALLBACK_MODELS).distinct()
             var lastError: ChatError? = null
-            repeat(3) { attempt ->
-                if (attempt > 0) Thread.sleep(1200L * attempt)
-                try {
-                    return@runCatching send(url, key, body)
-                } catch (e: ChatError) {
-                    lastError = e
-                    if (e.detail !in setOf("500", "502", "503", "504")) throw e
+            for (m in models) {
+                val url = URL(
+                    "https://generativelanguage.googleapis.com/v1beta/models/" +
+                        URLEncoder.encode(m, "UTF-8") + ":generateContent"
+                )
+                for (attempt in 0 until 2) {
+                    try {
+                        return@runCatching send(url, key, body)
+                    } catch (e: ChatError) {
+                        lastError = e
+                        if (e.code !in RETRYABLE) throw e
+                        if (e.code == 404 || e.code == 429) break // ننتقل للموديل اللي بعده على طول
+                        Thread.sleep(800)
+                    }
                 }
             }
-            throw lastError ?: ChatError(R.string.chat_failed)
+            throw lastError?.let { if (it.code in 500..599) ChatError(R.string.chat_busy, it.detail, it.code) else it }
+                ?: ChatError(R.string.chat_failed)
         }.recoverCatching { e ->
             if (e is ChatError) throw e
             throw ChatError(R.string.chat_network, e.javaClass.simpleName)
@@ -111,7 +122,8 @@ object GeminiClient {
                         code == 429 -> R.string.chat_quota
                         else -> R.string.chat_failed
                     },
-                    if (apiMessage.isBlank()) code.toString() else "$code: $apiMessage"
+                    if (apiMessage.isBlank()) code.toString() else "$code: $apiMessage",
+                    code
                 )
             }
             val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })

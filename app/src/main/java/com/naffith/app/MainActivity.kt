@@ -482,9 +482,20 @@ open class MainActivity : AppCompatActivity() {
         when (command) {
             is Command.OpenMaps -> if (command.navigate && command.query.isNotBlank()) {
                 // «وجهني الى …»: الملاحة تبدأ على طول، و«المنزل» يروح للبيت المحفوظ.
-                val target = Places.navigationTarget(command.query)
-                setStatus(getString(R.string.navigating_to, command.query))
-                runUnlocked { if (!launcher.navigate(target)) setStatus(getString(R.string.cannot_open)) }
+                val target = when (Places.navigationTarget(command.query)) {
+                    "Home" -> SavedPlaces.destination(this, SavedPlaces.Kind.HOME).ifBlank { null }
+                    "Work" -> SavedPlaces.destination(this, SavedPlaces.Kind.WORK).ifBlank { null }
+                    else -> command.query
+                }
+                if (target == null) {
+                    // البيت/الدوام مو محفوظ: نطلب منه يحفظه بدل ما نبحث عن كلمة «منزل».
+                    val msg = getString(R.string.places_missing, command.query)
+                    setStatus(msg)
+                    say(msg)
+                } else {
+                    setStatus(getString(R.string.navigating_to, command.query))
+                    runUnlocked { if (!launcher.navigate(target)) setStatus(getString(R.string.cannot_open)) }
+                }
             } else {
                 setStatus(
                     if (command.query.isBlank()) getString(R.string.opening_maps)

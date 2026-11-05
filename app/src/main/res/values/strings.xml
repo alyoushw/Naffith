@@ -40,6 +40,17 @@
     <string name="chat_bad_key">مفتاح Gemini غلط أو مو مفعّل. تأكد منه في الإعدادات.</string>
     <string name="chat_bad_model">اسم موديل Gemini غلط. خلّه gemini-flash-latest في الإعدادات.</string>
     <string name="chat_quota">وصلت حد الاستخدام المجاني في Gemini، جرّب بعد شوي.</string>
+    <string name="places_title">البيت والدوام</string>
+    <string name="places_hint">افتح خرائط Google ← اضغط على بيتك ← مشاركة ← نسخ الرابط، والصقه هنا (أو اكتب العنوان). ينحفظ في جوالك بس.</string>
+    <string name="places_home">البيت</string>
+    <string name="places_work">الدوام</string>
+    <string name="places_home_hint">رابط أو عنوان البيت</string>
+    <string name="places_work_hint">رابط أو عنوان الدوام</string>
+    <string name="places_set">✅ %1$s: %2$s</string>
+    <string name="places_not_set">%1$s: مو محفوظ</string>
+    <string name="places_nothing">ما قدرت أقرأ الرابط، جرّب تلصقه مرة ثانية أو اكتب العنوان.</string>
+    <string name="places_missing">ما حفظت عنوان %1$s للحين. حطه من الإعدادات ⚙️ ← البيت والدوام.</string>
+    <string name="chat_busy">سيرفرات Gemini مضغوطة الحين (حتى الموديلات البديلة)، جرّب بعد دقيقة.</string>
     <string name="chat_network">ما قدرت أوصل لـ Gemini، تأكد من الإنترنت.</string>
     <string name="chat_failed">ما جاني رد من Gemini، جرّب مرة ثانية.</string>
     <string name="navigating_to">أوجّهك إلى «%1$s»…</string>
