@@ -23,7 +23,8 @@ class VoicePopupActivity : MainActivity() {
         // نبض خفيف حول الصورة عشان تحس إن فيه أحد يسمعك.
         val halo = findViewById<View>(R.id.avatarHalo)
         listOf("scaleX", "scaleY").forEach { prop ->
-            ObjectAnimator.ofFloat(halo, prop, 1f, 1.18f).apply {
+            // نكبّر ونصغّر داخل حدود الإطار عشان الهالة ما تنقص من الأطراف.
+            ObjectAnimator.ofFloat(halo, prop, 0.82f, 1f).apply {
                 duration = 900
                 repeatMode = ValueAnimator.REVERSE
                 repeatCount = ValueAnimator.INFINITE

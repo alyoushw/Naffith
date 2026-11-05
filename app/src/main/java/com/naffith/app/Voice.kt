@@ -3,6 +3,7 @@ package com.naffith.app
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import android.speech.RecognitionService
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
@@ -58,18 +59,40 @@ object VoicePrefs {
         tts.setSpeechRate(0.95f)
     }
 
+    private const val GOOGLE_APP = "com.google.android.googlequicksearchbox"
+    private val GOOGLE_RECOGNIZER =
+        ComponentName(GOOGLE_APP, "com.google.android.voicesearch.serviceapi.GoogleRecognitionService")
+
     /**
-     * محرك التعرف على الكلام. إذا «نفّذ» صار المساعد الافتراضي، النظام ممكن يعتبره محرك التعرف
-     * الافتراضي، فنختار محرك Google (أو أي محرك ثاني) بالاسم عشان ما نكلّم نفسنا.
+     * محركات التعرف على الكلام بالترتيب اللي نجرّبه. null = محرك النظام الافتراضي.
+     *
+     * - محرك النظام الافتراضي أول (هو اللي كان شغال عندك)، إلا إذا صار «نفّذ» نفسه
+     *   (لما يكون المساعد الافتراضي) عشان ما نكلّم نفسنا.
+     * - بعده محرك تطبيق Google (يدعم العربي السعودي)، وبعدها الباقي.
+     * - محركات «على الجهاز فقط» (ذكاء النظام/تحويل النص لكلام) آخر شي لأنها غالباً بدون عربي.
+     * إذا محرك رد إن اللغة غير مدعومة، ننتقل للي بعده تلقائياً.
      */
-    fun createRecognizer(context: Context): SpeechRecognizer {
-        val services = context.packageManager.queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
+    fun recognizerCandidates(context: Context): List<ComponentName?> {
+        val installed = context.packageManager.queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
             .map { ComponentName(it.serviceInfo.packageName, it.serviceInfo.name) }
             .filter { it.packageName != context.packageName }
-        val preferred = services.firstOrNull { it.packageName == "com.google.android.googlequicksearchbox" }
-            ?: services.firstOrNull { it.packageName.startsWith("com.google.") }
-            ?: services.firstOrNull()
-        return if (preferred != null) SpeechRecognizer.createSpeechRecognizer(context, preferred)
+        val systemDefault = Settings.Secure.getString(context.contentResolver, "voice_recognition_service")
+            ?.let { ComponentName.unflattenFromString(it) }
+        val result = mutableListOf<ComponentName?>()
+        if (systemDefault != null && systemDefault.packageName != context.packageName) result.add(null)
+        if (GOOGLE_RECOGNIZER in installed) result.add(GOOGLE_RECOGNIZER)
+        val onDeviceOnly = setOf("com.google.android.as", "com.google.android.tts")
+        installed.filter { it !in result && it.packageName == GOOGLE_APP }.forEach { result.add(it) }
+        installed.filter { it !in result && it.packageName !in onDeviceOnly }.forEach { result.add(it) }
+        installed.filter { it !in result }.forEach { result.add(it) }
+        if (result.isEmpty()) result.add(null)
+        return result.distinct()
+    }
+
+    fun createRecognizer(context: Context, index: Int = 0): SpeechRecognizer {
+        val candidates = recognizerCandidates(context)
+        val component = candidates.getOrNull(index) ?: candidates.firstOrNull()
+        return if (component != null) SpeechRecognizer.createSpeechRecognizer(context, component)
         else SpeechRecognizer.createSpeechRecognizer(context)
     }
 

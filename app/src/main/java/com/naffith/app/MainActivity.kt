@@ -59,6 +59,9 @@ open class MainActivity : AppCompatActivity() {
     private var recognizer: SpeechRecognizer? = null
     private var isListening = false
 
+    /** أي محرك تعرف نستخدم (من [VoicePrefs.recognizerCandidates])؛ يزيد إذا المحرك ما يدعم العربي. */
+    private var recognizerIndex = 0
+
     /** إذا سألنا المستخدم سؤال (مثل «على مين تتصل؟») فالجواب الجاي يروح هنا بدل المحلل. */
     private var followUp: ((String) -> Command)? = null
 
@@ -369,7 +372,7 @@ open class MainActivity : AppCompatActivity() {
             setStatus(getString(R.string.speech_unavailable))
             return
         }
-        val sr = recognizer ?: VoicePrefs.createRecognizer(this).also {
+        val sr = recognizer ?: VoicePrefs.createRecognizer(this, recognizerIndex).also {
             it.setRecognitionListener(listener)
             recognizer = it
         }
@@ -418,6 +421,16 @@ open class MainActivity : AppCompatActivity() {
 
         override fun onError(error: Int) {
             setListening(false)
+            // المحرك ما يدعم العربي؟ نجرّب المحرك اللي بعده بصمت.
+            if ((error == ERROR_LANGUAGE_NOT_SUPPORTED || error == ERROR_LANGUAGE_UNAVAILABLE) &&
+                recognizerIndex + 1 < VoicePrefs.recognizerCandidates(this@MainActivity).size
+            ) {
+                recognizerIndex++
+                recognizer?.destroy()
+                recognizer = null
+                startListening()
+                return
+            }
             setStatus(errorMessage(error))
             closePopupSoon()
         }
