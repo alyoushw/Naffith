@@ -163,4 +163,17 @@ class ContactMatcherTest {
         val rouhi = c("روحي ❤️")
         assertEquals(rouhi, single(ContactMatcher.match(cmd.contactNames, listOf(rouhi, c("روان")))))
     }
+
+    @Test fun splitNameAndMessageUsesContacts() {
+        val contacts = listOf(c("محمد الحفة"), c("محمد علي"), c("روحي"))
+        assertEquals("محمد الحفة" to "هلا", ContactMatcher.splitNameAndMessage("محمد الحفة هلا", contacts))
+        assertEquals("روحي" to "هلا والله", ContactMatcher.splitNameAndMessage("روحي هلا والله", contacts))
+    }
+
+    @Test fun youtubeFirstVideoId() {
+        val html = """{"contents":[{"adSlotRenderer":{}},{"videoRenderer":{"videoId":"Ab_cD-12345","thumbnail":{}}},""" +
+            """{"videoRenderer":{"videoId":"zzzzzzzzzzz"}}]}"""
+        assertEquals("Ab_cD-12345", YouTubeResults.firstVideoId(html))
+        assertEquals(null, YouTubeResults.firstVideoId("<html>no results</html>"))
+    }
 }

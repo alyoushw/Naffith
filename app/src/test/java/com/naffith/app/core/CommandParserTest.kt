@@ -42,7 +42,7 @@ class CommandParserTest {
     }
 
     @Test fun youtubeAttachedPrefix() {
-        assertEquals(Command.SearchYouTube("مباراة الهلال"), parse("شغل لي مباراة الهلال باليوتيوب"))
+        assertEquals(Command.SearchYouTube("مباراة الهلال", play = true), parse("شغل لي مباراة الهلال باليوتيوب"))
         assertEquals(Command.SearchYouTube("محمد عبده"), parse("دور عاليوتيوب محمد عبده"))
     }
 
@@ -51,7 +51,7 @@ class CommandParserTest {
     }
 
     @Test fun playWithoutAppMeansYoutube() {
-        assertEquals(Command.SearchYouTube("أغنية طلال مداح"), parse("شغل أغنية طلال مداح"))
+        assertEquals(Command.SearchYouTube("أغنية طلال مداح", play = true), parse("شغل أغنية طلال مداح"))
     }
 
     // ---------- واتساب ----------
@@ -180,5 +180,43 @@ class CommandParserTest {
 
     @Test fun whatsappWithoutMessage() {
         assertEquals("", (parse("افتح واتساب روحي") as Command.WhatsApp).message)
+    }
+
+    // ---------- «شغل» يشغّل، «ارسل» يرسل ----------
+
+    @Test fun playPoemFromYoutube() {
+        assertEquals(
+            Command.SearchYouTube("قصيده وليا وحافظا", play = true),
+            parse("شغل لي قصيده وليا وحافظا من اليوتيوب")
+        )
+    }
+
+    @Test fun searchDoesNotAutoPlay() {
+        assertEquals(Command.SearchYouTube("طبخ كبسة", play = false), parse("ابحث في يوتيوب عن طبخ كبسة"))
+    }
+
+    @Test fun whatsappWriteDoesNotSend() {
+        val cmd = parse("افتح واتساب روحي اكتب هلا") as Command.WhatsApp
+        assertEquals(false, cmd.send)
+    }
+
+    @Test fun whatsappWriteAndSend() {
+        val cmd = parse("افتح واتساب روحي اكتب هلا وارسلها") as Command.WhatsApp
+        assertEquals(listOf("روحي"), cmd.contactNames)
+        assertEquals("هلا", cmd.message)
+        assertEquals(true, cmd.send)
+    }
+
+    @Test fun whatsappNameAndMessageTogether() {
+        val cmd = parse("اكتب رسالة واتساب محمد الحفة هلا وارسلها") as Command.WhatsApp
+        assertEquals("محمد الحفة هلا", cmd.nameAndMessage)
+        assertEquals(true, cmd.send)
+    }
+
+    @Test fun whatsappSendVerbFirst() {
+        val cmd = parse("ارسل لروحي بالواتساب هلا والله") as Command.WhatsApp
+        assertEquals(listOf("روحي"), cmd.contactNames)
+        assertEquals("هلا والله", cmd.message)
+        assertEquals(true, cmd.send)
     }
 }

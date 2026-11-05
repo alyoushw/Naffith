@@ -45,6 +45,26 @@ object ContactMatcher {
             .take(limit)
             .map { it.contact }
 
+    /**
+     * يفصل الاسم عن الرسالة لما يجون ورا بعض: «محمد الحفة هلا» ← («محمد الحفة»، «هلا»).
+     * نجرّب كل تقسيمة ونختار الاسم اللي يطابق جهة اتصال أكثر (والأطول عند التعادل).
+     */
+    fun splitNameAndMessage(text: String, contacts: List<Contact>): Pair<String, String> {
+        val words = text.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (words.size < 2) return text.trim() to ""
+        var bestK = 1
+        var bestScore = -1.0
+        for (k in 1 until words.size) {
+            val name = words.take(k).joinToString(" ")
+            val score = scoreAll(listOf(name), contacts).firstOrNull()?.score ?: 0.0
+            if (score >= THRESHOLD && score >= bestScore) {
+                bestScore = score
+                bestK = k
+            }
+        }
+        return words.take(bestK).joinToString(" ") to words.drop(bestK).joinToString(" ")
+    }
+
     private fun scoreAll(queries: List<String>, contacts: List<Contact>): List<ContactMatch> {
         val usable = expandQueries(queries)
         if (usable.isEmpty() || contacts.isEmpty()) return emptyList()

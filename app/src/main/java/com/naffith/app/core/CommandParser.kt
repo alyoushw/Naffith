@@ -38,6 +38,12 @@ object CommandParser {
         "ارسل", "ارسله", "ارسلها", "ارسلي", "ابعث", "ابعثله", "ابعثلها", "رسل", "رسله", "بلغه", "بلغها",
         "تقول", "يقول", "مكتوب", "نصها", "write", "say", "send"
     )
+    /** كلمات الإرسال: وجودها يعني نضغط إرسال، وفي آخر الجملة («… وارسلها») مو جزء من الرسالة. */
+    private val sendWords = setOf(
+        "ارسل", "ارسله", "ارسلها", "ارسلي", "ارسلهم", "رسل", "رسله", "رسلها", "ابعث", "ابعثه", "ابعثها", "ابعثله",
+        "ابعثلها", "دز", "دزه", "دزها", "send"
+    )
+
     /** كلمات تُحذف من بداية الرسالة: «اكتب له هلا» ← «هلا». */
     private val messageLeadWords = setOf("له", "لها", "لهم", "ليه", "فيها", "رساله", "مسج", "انه", "انها")
     private val messageTrailWords = setOf("في", "على", "ب", "عن", "من", "طريق")
@@ -80,14 +86,14 @@ object CommandParser {
 
         return when {
             has(whatsappWords) -> whatsApp(tokens)
-            has(youtubeWords) -> Command.SearchYouTube(query(tokens, youtubeWords))
+            has(youtubeWords) -> Command.SearchYouTube(query(tokens, youtubeWords), play = has(playWords))
             has(mapsWords) -> Command.OpenMaps(query(tokens, mapsWords))
             has(navigationWords) -> Command.OpenMaps(query(tokens, navigationWords))
             has(callWords) -> Command.Call(contactNames(tokens, callWords))
             // «شغل لي أغنية…» بدون ذكر التطبيق ← نفترض يوتيوب، بشرط وجود شيء نبحث عنه.
             has(playWords) ->
                 query(tokens, playWords).takeIf { it.isNotEmpty() }
-                    ?.let { Command.SearchYouTube(it) } ?: Command.Unknown(text)
+                    ?.let { Command.SearchYouTube(it, play = true) } ?: Command.Unknown(text)
             else -> Command.Unknown(text)
         }
     }
@@ -104,16 +110,28 @@ object CommandParser {
      * واتساب مع رسالة اختيارية:
      * «افتح واتساب روحي اكتب هلا»، «راسل خالد بالواتس قل له وينك»، «قول لروحي بالواتساب هلا».
      */
+    private fun isSendWord(t: Token) = t.normalized in sendWords ||
+        (t.normalized.startsWith("و") && t.normalized.drop(1) in sendWords)
+
     private fun whatsApp(all: List<Token>): Command.WhatsApp {
         // «واتس اب» تنكتب أحياناً كلمتين.
-        val tokens = all.filterIndexed { i, t ->
+        val withApp = all.filterIndexed { i, t ->
             !(t.normalized == "اب" && i > 0 && isWord(all[i - 1].normalized, whatsappWords))
+        }.toMutableList()
+
+        // «… وارسلها» / «… وارسل» في الآخر: أمر إرسال، مو جزء من الرسالة.
+        val send = withApp.any(::isSendWord)
+        while (withApp.size > 1 && (isSendWord(withApp.last()) || isWord(withApp.last().normalized, whatsappWords) ||
+                withApp.last().normalized in messageTrailWords || withApp.last().normalized == "الحين")
+        ) {
+            withApp.removeAt(withApp.size - 1)
         }
+        val tokens: List<Token> = withApp
 
         // 1) فيه اسم ثم كلمة رسالة: كل اللي بعدها رسالة.
         val split = tokens.indices.firstOrNull { i -> isMarker(tokens[i]) && tokens.take(i).any(::isMeaningful) }
         if (split != null) {
-            return Command.WhatsApp(contactNames(tokens.take(split), whatsappWords), message(tokens.drop(split + 1)))
+            return Command.WhatsApp(contactNames(tokens.take(split), whatsappWords), message(tokens.drop(split + 1)), send)
         }
 
         // 2) يبدأ بكلمة رسالة ثم «لـ<اسم>»: «قول لروحي بالواتساب هلا».
@@ -121,10 +139,21 @@ object CommandParser {
             .dropWhile { it.normalized in commonEdgeWords && !isMarker(it) }
         if (rest.size >= 3 && isMarker(rest[0]) && rest[1].normalized.startsWith("ل") && rest[1].normalized.length > 2) {
             val name = rest[1].original.drop(1)
-            return Command.WhatsApp(listOf(name), message(rest.drop(2)))
+            return Command.WhatsApp(listOf(name), message(rest.drop(2)), send)
         }
 
-        return Command.WhatsApp(contactNames(tokens, whatsappWords))
+        // 3) يبدأ بكلمة رسالة والاسم والرسالة ورا بعض: «اكتب رسالة واتساب محمد الحفة هلا».
+        if (rest.isNotEmpty() && isMarker(rest[0])) {
+            val body = rest.drop(1).dropWhile {
+                it.normalized in messageLeadWords || it.normalized in contactEdgeWords || it.normalized in commonEdgeWords
+            }
+            if (body.size >= 2) {
+                return Command.WhatsApp(emptyList(), send = send, nameAndMessage = body.joinToString(" ") { it.original })
+            }
+            if (body.size == 1) return Command.WhatsApp(listOf(body[0].original), send = send)
+        }
+
+        return Command.WhatsApp(contactNames(tokens, whatsappWords), send = send)
     }
 
     private fun message(tokens: List<Token>): String {

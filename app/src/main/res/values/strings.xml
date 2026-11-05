@@ -20,6 +20,14 @@
     <string name="unlock_cancelled">ما انفتح القفل، ما قدرت أكمّل الأمر.</string>
     <string name="hf_wake_heard">سمعتك! قل أمرك…</string>
     <string name="hf_engine_failed">ما قدر محرك «يا نفّذ» يشتغل على جوالك.</string>
+    <string name="playing_youtube">أشغّل «%1$s» من يوتيوب…</string>
+    <string name="sending_whatsapp">أرسل «%1$s» لـ %2$s…</string>
+    <string name="a11y_label">نفّذ: الإرسال في واتساب</string>
+    <string name="a11y_description">يضغط زر الإرسال في واتساب بس لما تقول لـ«نفّذ» «ارسل». ما يقرأ ولا يحفظ رسايلك.</string>
+    <string name="a11y_title">تفعيل الإرسال التلقائي</string>
+    <string name="a11y_message">عشان أضغط «إرسال» بدالك، فعّل «نفّذ: الإرسال في واتساب» من إعدادات إمكانية الوصول.\n\nإذا طلع لك «إعداد مقيّد»: افتح معلومات التطبيق «نفّذ» ← النقاط الثلاث ← «السماح بالإعدادات المقيّدة»، وارجع فعّله.\n\nهالمرة كتبت لك الرسالة وتضغط إرسال بنفسك.</string>
+    <string name="hf_greeting">هلا والله</string>
+    <string name="voice_unclear">ما فهمت عليك، عيد مرة ثانية</string>
     <string name="opening_whatsapp">أفتح محادثة واتساب مع %1$s</string>
     <string name="calling">أتصل على %1$s…</string>
     <string name="dialing_instead">ما عندي إذن الاتصال المباشر، فتحت لك لوحة الاتصال برقم %1$s</string>

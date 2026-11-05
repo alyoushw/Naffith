@@ -13,6 +13,8 @@ import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
@@ -30,6 +32,7 @@ import com.naffith.app.core.Contact
 import com.naffith.app.core.ContactMatcher
 import com.naffith.app.core.MatchResult
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -48,6 +51,13 @@ class MainActivity : AppCompatActivity() {
 
     /** إذا سألنا المستخدم سؤال (مثل «على مين تتصل؟») فالجواب الجاي يروح هنا بدل المحلل. */
     private var followUp: ((String) -> Command)? = null
+
+    /** جينا من «يا نفّذ»: نرد ونسأل بالصوت. */
+    private var voiceMode = false
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var pendingSpeech: Pair<String, (() -> Unit)?>? = null
+    private val utteranceCallbacks = java.util.concurrent.ConcurrentHashMap<String, () -> Unit>()
 
     // ---------- الأذونات: نطلبها وقت الحاجة فقط ----------
 
@@ -110,6 +120,9 @@ class MainActivity : AppCompatActivity() {
             if (!updatingSwitch) onHandsFreeToggled(checked)
         }
 
+        // نجهّز الصوت من بدري عشان «هلا والله» تطلع على طول.
+        if (HandsFreeService.isEnabled(this)) initTts()
+
         micButton.setOnClickListener { onMicClicked() }
         micButton.setOnLongClickListener {
             confirmForgetChoices()
@@ -150,6 +163,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         showOverLockScreen(false)
+        voiceMode = false
     }
 
     /** أوامر جاية من وضع «يا نفّذ» أو من زر الأوامر الصوتية في السماعة. */
@@ -164,15 +178,20 @@ class MainActivity : AppCompatActivity() {
             }
             intent.getBooleanExtra(EXTRA_START_LISTENING, false) ||
                 intent.action == Intent.ACTION_VOICE_COMMAND || intent.action == Intent.ACTION_ASSIST -> {
-                if (intent.getBooleanExtra(EXTRA_FROM_WAKE_WORD, false)) {
-                    showOverLockScreen(true)
-                    transcriptText.text = ""
-                    setStatus(getString(R.string.hf_wake_heard))
-                }
+                val fromWake = intent.getBooleanExtra(EXTRA_FROM_WAKE_WORD, false)
                 intent.removeExtra(EXTRA_START_LISTENING)
                 intent.removeExtra(EXTRA_FROM_WAKE_WORD)
                 intent.action = null
-                micButton.postDelayed({ if (!isListening) startListeningWithPermission() }, 400)
+                if (fromWake) {
+                    voiceMode = true
+                    showOverLockScreen(true)
+                    transcriptText.text = ""
+                    setStatus(getString(R.string.hf_wake_heard))
+                    // نرد بصوت «هلا والله» وبعدها نسمع (عشان المايك ما يلقط صوتنا).
+                    say(getString(R.string.hf_greeting)) { if (!isListening) startListeningWithPermission() }
+                } else {
+                    micButton.postDelayed({ if (!isListening) startListeningWithPermission() }, 400)
+                }
             }
         }
     }
@@ -248,7 +267,57 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         recognizer?.destroy()
         recognizer = null
+        tts?.shutdown()
+        tts = null
         super.onDestroy()
+    }
+
+    // ---------- الرد بالصوت (وضع «يا نفّذ») ----------
+
+    /** ننطق النص (لو جينا من «يا نفّذ»)، وبعد ما نخلص ننفذ [then]. */
+    private fun say(text: String, then: (() -> Unit)? = null) {
+        if (!voiceMode) {
+            then?.let { micButton.postDelayed(it, 400) }
+            return
+        }
+        val engine = tts
+        if (engine == null || !ttsReady) {
+            pendingSpeech = text to then
+            if (engine == null) initTts()
+            // إذا محرك الصوت تأخر، ما نخلي المستخدم ينتظر.
+            micButton.postDelayed({
+                pendingSpeech?.let { (_, cb) -> pendingSpeech = null; cb?.invoke() }
+            }, 2500)
+            return
+        }
+        val id = "u" + System.nanoTime()
+        if (then != null) utteranceCallbacks[id] = then
+        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
+    }
+
+    private fun initTts() {
+        tts = TextToSpeech(this) { status ->
+            val engine = tts ?: return@TextToSpeech
+            if (status != TextToSpeech.SUCCESS) return@TextToSpeech
+            val sa = engine.setLanguage(Locale("ar", "SA"))
+            if (sa == TextToSpeech.LANG_MISSING_DATA || sa == TextToSpeech.LANG_NOT_SUPPORTED) {
+                engine.setLanguage(Locale("ar"))
+            }
+            engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) {
+                    val cb = utteranceCallbacks.remove(utteranceId) ?: return
+                    runOnUiThread(cb)
+                }
+                @Deprecated("Deprecated in Java")
+                override fun onError(utteranceId: String?) = onDone(utteranceId)
+            })
+            ttsReady = true
+            pendingSpeech?.let { (text, cb) ->
+                pendingSpeech = null
+                say(text, cb)
+            }
+        }
     }
 
     // ---------- التعرف على الصوت ----------
@@ -366,25 +435,45 @@ class MainActivity : AppCompatActivity() {
                 runUnlocked { if (!launcher.openMaps(command.query)) setStatus(getString(R.string.cannot_open)) }
             }
 
-            is Command.SearchYouTube -> {
-                setStatus(
-                    if (command.query.isBlank()) getString(R.string.opening_youtube)
-                    else getString(R.string.searching_youtube, command.query)
-                )
-                runUnlocked { if (!launcher.openYouTube(command.query)) setStatus(getString(R.string.cannot_open)) }
-            }
-
-            is Command.WhatsApp ->
-                if (command.contactNames.isEmpty()) {
-                    askFollowUp(getString(R.string.ask_whatsapp_name)) {
-                        Command.WhatsApp(CommandParser.parseName(it), command.message)
+            is Command.SearchYouTube ->
+                if (command.play && command.query.isNotBlank()) {
+                    // «شغل …»: ندوّر وأول نتيجة نشغّلها على طول.
+                    setStatus(getString(R.string.playing_youtube, command.query))
+                    lifecycleScope.launch {
+                        val videoId = YouTubeSearch.firstVideoId(command.query)
+                        runUnlocked {
+                            val ok = if (videoId != null) launcher.playYouTubeVideo(videoId)
+                            else launcher.openYouTube(command.query)
+                            if (!ok) setStatus(getString(R.string.cannot_open))
+                        }
                     }
                 } else {
-                    val retry = { text: String -> Command.WhatsApp(CommandParser.parseName(text), command.message) }
+                    setStatus(
+                        if (command.query.isBlank()) getString(R.string.opening_youtube)
+                        else getString(R.string.searching_youtube, command.query)
+                    )
+                    runUnlocked { if (!launcher.openYouTube(command.query)) setStatus(getString(R.string.cannot_open)) }
+                }
+
+            is Command.WhatsApp -> when {
+                // «اكتب رسالة واتساب محمد الحفة هلا»: نفصل الاسم عن الرسالة حسب جهات الاتصال.
+                command.nameAndMessage.isNotBlank() -> withContacts { contacts ->
+                    val (name, message) = ContactMatcher.splitNameAndMessage(command.nameAndMessage, contacts)
+                    execute(command.copy(contactNames = listOf(name), message = message, nameAndMessage = ""))
+                }
+
+                command.contactNames.isEmpty() ->
+                    askFollowUp(getString(R.string.ask_whatsapp_name)) {
+                        command.copy(contactNames = CommandParser.parseName(it))
+                    }
+
+                else -> {
+                    val retry = { text: String -> command.copy(contactNames = CommandParser.parseName(text)) }
                     resolveContact(command.contactNames, retry = retry) { contact ->
-                        openWhatsApp(contact, command.message)
+                        openWhatsApp(contact, command.message, command.send)
                     }
                 }
+            }
 
             is Command.Call ->
                 if (command.contactNames.isEmpty()) {
@@ -399,15 +488,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** نسأل سؤال ونفتح المايك مباشرة لسماع الجواب. */
+    /** نسأل سؤال (بالصوت في وضع «يا نفّذ») ونفتح المايك مباشرة لسماع الجواب. */
     private fun askFollowUp(question: String, toCommand: (String) -> Command) {
         setStatus(question)
         followUp = toCommand
-        micButton.postDelayed({ if (!isFinishing && followUp != null) startListeningWithPermission() }, 600)
+        say(question) { if (!isFinishing && followUp != null && !isListening) startListeningWithPermission() }
     }
 
     /** لما ما نفهم الأمر: نعرض اللي سمعناه ونخلي المستخدم يختار وش يقصد. */
     private fun askForClarification(heard: String) {
+        if (voiceMode) {
+            // الجوال ممكن يكون في جيبك، فنسألك بالصوت ونسمع مرة ثانية بدل القائمة.
+            setStatus(getString(R.string.unclear_status))
+            say(getString(R.string.voice_unclear)) { if (!isListening) startListeningWithPermission() }
+            return
+        }
         setStatus(getString(R.string.unclear_status))
         val options = arrayOf(
             getString(R.string.unclear_maps),
@@ -429,6 +524,21 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.cancel) { _, _ -> setStatus(getString(R.string.status_ready)) }
             .show()
+    }
+
+    /** يقرأ جهات الاتصال (بعد الإذن) وينفذ [block]. */
+    private fun withContacts(block: (List<Contact>) -> Unit) {
+        withPermission(
+            Manifest.permission.READ_CONTACTS,
+            onDenied = {
+                handleDenied(Manifest.permission.READ_CONTACTS, R.string.perm_contacts_denied, R.string.perm_permanent_contacts)
+            }
+        ) {
+            lifecycleScope.launch {
+                val contacts = runCatching { contactsRepository.loadContacts() }.getOrDefault(emptyList())
+                if (contacts.isEmpty()) setStatus(getString(R.string.no_contacts)) else block(contacts)
+            }
+        }
     }
 
     private fun resolveContact(names: List<String>, retry: (String) -> Command, onContact: (Contact) -> Unit) {
@@ -480,6 +590,7 @@ class MainActivity : AppCompatActivity() {
         retry: ((String) -> Command)? = null,
     ) {
         setStatus(title)
+        say(title)
         val labels = contacts.map { "${it.name}\n${it.number}" }.toTypedArray()
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(title)
@@ -513,15 +624,31 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun openWhatsApp(contact: Contact, message: String) {
+    private fun openWhatsApp(contact: Contact, message: String, send: Boolean) {
         val installed = launcher.isWhatsAppInstalled()
+        val autoSend = send && message.isNotBlank() && WhatsAppSendService.isEnabled(this)
         setStatus(
-            if (message.isBlank()) getString(R.string.opening_whatsapp, contact.name)
-            else getString(R.string.writing_whatsapp, message, contact.name)
+            when {
+                message.isBlank() -> getString(R.string.opening_whatsapp, contact.name)
+                autoSend -> getString(R.string.sending_whatsapp, message, contact.name)
+                else -> getString(R.string.writing_whatsapp, message, contact.name)
+            }
         )
+        if (send && message.isNotBlank() && !autoSend) {
+            // نكتب الرسالة الحين، ونشرح كيف يفعّل الإرسال التلقائي للمرات الجاية.
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.a11y_title)
+                .setMessage(R.string.a11y_message)
+                .setPositiveButton(R.string.open_settings) { _, _ ->
+                    runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                }
+                .setNegativeButton(R.string.hf_overlay_later, null)
+                .show()
+        }
         lifecycleScope.launch {
             val entry = contactsRepository.findWhatsAppEntry(contact)
             runUnlocked {
+                if (autoSend) WhatsAppSendService.requestSend() else WhatsAppSendService.cancel()
                 when {
                     !launcher.openWhatsAppChat(contact.number, entry, message) -> setStatus(getString(R.string.cannot_open))
                     !installed -> setStatus(getString(R.string.whatsapp_not_installed))

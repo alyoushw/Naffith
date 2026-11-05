@@ -38,6 +38,13 @@ class AppLauncher(private val context: Context) {
         return start(Intent(Intent.ACTION_VIEW, web))
     }
 
+    /** يشغّل فيديو يوتيوب مباشرة. */
+    fun playYouTubeVideo(videoId: String): Boolean {
+        val app = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoId")).setPackage(YOUTUBE_PACKAGE)
+        if (isInstalled(YOUTUBE_PACKAGE) && start(app)) return true
+        return start(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoId")))
+    }
+
     /**
      * يفتح محادثة واتساب. الأفضل عن طريق صف واتساب في جهة الاتصال (يفتح المحادثة نفسها
      * دائماً)، وإلا برابط api.whatsapp.com بالرقم الدولي. [message] ينكتب في خانة الكتابة جاهز
