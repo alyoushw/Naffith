@@ -66,6 +66,11 @@ class SettingsActivity : AppCompatActivity() {
         setupChat()
         setupPlaces()
 
+        findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.openAsAssistantSwitch).apply {
+            isChecked = VoicePrefs.openAsAssistant(this@SettingsActivity)
+            setOnCheckedChangeListener { _, checked -> VoicePrefs.setOpenAsAssistant(this@SettingsActivity, checked) }
+        }
+
         findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.speakSwitch).apply {
             isChecked = VoicePrefs.speakReplies(this@SettingsActivity)
             setOnCheckedChangeListener { _, checked -> VoicePrefs.setSpeakReplies(this@SettingsActivity, checked) }

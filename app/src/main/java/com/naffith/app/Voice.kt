@@ -16,6 +16,17 @@ object VoicePrefs {
     private const val KEY_VOICE = "tts_voice"
     private const val KEY_SENSITIVITY = "wake_sensitivity"
     private const val KEY_SPEAK = "speak_replies"
+    private const val KEY_OPEN_AS_ASSISTANT = "open_as_assistant"
+
+    /**
+     * أيقونة «نفّذ» تفتح نافذة المساعد مباشرة (بدل الشاشة الكاملة). مفيد لزر الجنب في سامسونج
+     * اللي يعرض تطبيق واحد لكل حزمة.
+     */
+    fun openAsAssistant(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_OPEN_AS_ASSISTANT, false)
+
+    fun setOpenAsAssistant(context: Context, value: Boolean) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_OPEN_AS_ASSISTANT, value).apply()
 
     /** يرد بالصوت («هلا بيك، أمرني» والأسئلة)؟ إذا لا، المساعد يسمع على طول بدون كلام. */
     fun speakReplies(context: Context): Boolean =

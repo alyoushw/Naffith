@@ -120,6 +120,14 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (shouldOpenAsAssistant(intent)) {
+            // أيقونة «نفّذ» (أو زر الجنب) تفتح نافذة المساعد على طول.
+            startActivity(Intent(this, VoicePopupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            finish()
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+            return
+        }
         setContentView(layoutRes)
 
         transcriptText = findViewById(R.id.transcriptText)
@@ -137,7 +145,19 @@ open class MainActivity : AppCompatActivity() {
             }
         }
         findViewById<android.view.View?>(R.id.settingsButton)?.setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
+            if (isPopup) {
+                // من النافذة: نفتح التطبيق الكامل (فيه الإعدادات) ونسكّر النافذة.
+                startActivity(
+                    Intent(this, MainActivity::class.java)
+                        .setAction(Intent.ACTION_MAIN)
+                        .putExtra(EXTRA_FULL_APP, true)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                finish()
+            } else {
+                openingInternalScreen = true
+                startActivity(Intent(this, SettingsActivity::class.java))
+            }
         }
         answerText = findViewById(R.id.answerText)
         // زر «اسأل Gemini»: يحاول يفتح نافذة Gemini الصوتية، وضغطة مطوّلة تفتح تطبيق Gemini بسؤالك الأخير.
@@ -169,8 +189,18 @@ open class MainActivity : AppCompatActivity() {
         micButton.setOnClickListener { onMicClicked() }
     }
 
+    /** فتح من الأيقونة والخيار مفعّل (وما طلب التطبيق الكامل من زر ⚙️ في النافذة). */
+    private fun shouldOpenAsAssistant(intent: Intent?): Boolean =
+        !isPopup && VoicePrefs.openAsAssistant(this) &&
+            intent?.action == Intent.ACTION_MAIN &&
+            intent.getBooleanExtra(EXTRA_FULL_APP, false).not()
+
+    /** فتحنا شاشة داخلية (الإعدادات)؛ ما نسكّر الشاشة الرئيسية وراها. */
+    private var openingInternalScreen = false
+
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
+        if (isFinishing) return
         if (savedInstanceState == null) handleLaunchIntent(intent)
     }
 
@@ -206,6 +236,10 @@ open class MainActivity : AppCompatActivity() {
             if (!isChangingConfigurations) finish()
             return
         }
+        // إذا «افتح كنافذة مساعد» مفعّل، نسكّر الشاشة الكاملة لما تطلع منها، عشان المرة الجاية
+        // الأيقونة/زر الجنب يفتح النافذة مو هذي الشاشة.
+        if (VoicePrefs.openAsAssistant(this) && !isChangingConfigurations && !openingInternalScreen) finish()
+        openingInternalScreen = false
         showOverLockScreen(false)
         voiceMode = false
     }
@@ -972,6 +1006,8 @@ open class MainActivity : AppCompatActivity() {
         const val EXTRA_COMMANDS = "com.naffith.app.extra.COMMANDS"
         const val EXTRA_START_LISTENING = "com.naffith.app.extra.START_LISTENING"
         const val EXTRA_FROM_WAKE_WORD = "com.naffith.app.extra.FROM_WAKE_WORD"
+        /** افتح الشاشة الكاملة حتى لو «افتح كنافذة مساعد» مفعّل. */
+        const val EXTRA_FULL_APP = "com.naffith.app.extra.FULL_APP"
         private const val LANGUAGE = "ar-SA"
         // ثوابت من API 31، نكتبها كأرقام عشان تشتغل مع minSdk 24.
         private const val ERROR_LANGUAGE_NOT_SUPPORTED = 12

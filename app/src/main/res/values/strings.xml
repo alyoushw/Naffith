@@ -15,7 +15,7 @@
     <string name="alias_row">«%1$s» ← %2$s\n%3$s</string>
     <string name="alias_delete">حذف</string>
     <string name="alias_delete_confirm">أحذف «%1$s» = %2$s؟</string>
-    <string name="assistant_title">زر المساعد (بدون مايك شغال)</string>
+    <string name="assistant_title">فتح المساعد</string>
     <string name="assistant_off">خلّ «نفّذ» المساعد الافتراضي: بعدها ضغطة مطوّلة على زر التشغيل (أو زر الهوم) تفتح نافذة نفّذ وتقول لك «هلا بيك، أمرني»، والمايك ما يشتغل إلا وقتها.\n\nملاحظة: هذا يحل محل مساعد Google («Hey Google»).</string>
     <string name="assistant_on">✅ «نفّذ» هو المساعد الافتراضي. اضغط مطوّل على زر التشغيل (أو زر الهوم) وقل أمرك.</string>
     <string name="assistant_button">اجعل نفّذ المساعد الافتراضي</string>
@@ -39,6 +39,7 @@
     <string name="searching_in_app">أبحث عن «%1$s» في %2$s…</string>
     <string name="app_no_search">%1$s ما يسمح بالبحث من برا، فتحته لك.</string>
     <string name="assistant_shortcut_label">مساعد نفّذ</string>
+    <string name="open_as_assistant_switch">افتح نفّذ كنافذة مساعد على طول\nأيقونة «نفّذ» (وزر الجنب «الضغط مرتين») تفتح النافذة الصغيرة وتسمعك مباشرة. للتطبيق الكامل اضغط ⚙️ في النافذة.</string>
     <string name="ask_screen">اسأل عن الشاشة</string>
     <string name="ask_screen_prompt">وش تبي تعرف عن اللي في الشاشة؟</string>
     <string name="chat_looking">لحظة أشوف الشاشة…</string>
