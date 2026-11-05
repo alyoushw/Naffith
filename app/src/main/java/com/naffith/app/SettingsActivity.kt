@@ -153,12 +153,19 @@ class SettingsActivity : AppCompatActivity() {
     // ---------- السوالف (Gemini) ----------
 
     private fun setupChat() {
-        val switch = findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.chatSwitch)
         val keyInput = findViewById<EditText>(R.id.chatKey)
         val modelInput = findViewById<EditText>(R.id.chatModel)
-        switch.isChecked = GeminiClient.enabledSetting(this)
-        switch.setOnCheckedChangeListener { _, checked ->
-            GeminiClient.setEnabled(this, checked)
+        val modeIds = mapOf(
+            GeminiClient.AnswerMode.AUTO to R.id.modeAuto,
+            GeminiClient.AnswerMode.IN_APP to R.id.modeInApp,
+            GeminiClient.AnswerMode.GEMINI_APP to R.id.modeGeminiApp,
+            GeminiClient.AnswerMode.GOOGLE to R.id.modeGoogle,
+            GeminiClient.AnswerMode.ASK to R.id.modeAsk,
+        )
+        val group = findViewById<RadioGroup>(R.id.answerModeGroup)
+        group.check(modeIds.getValue(GeminiClient.answerMode(this)))
+        group.setOnCheckedChangeListener { _, id ->
+            modeIds.entries.firstOrNull { it.value == id }?.let { GeminiClient.setAnswerMode(this, it.key) }
             renderChat()
         }
         // ما نعرض المفتاح نفسه، بس نبيّن إنه محفوظ.
@@ -180,10 +187,13 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun renderChat() {
+        val geminiInstalled = AppLauncher(this).isGeminiInstalled()
         findViewById<TextView>(R.id.chatStatus).text = getString(
-            when {
-                GeminiClient.apiKey(this).isBlank() -> R.string.chat_status_no_key
-                GeminiClient.isEnabled(this) -> R.string.chat_status_on
+            when (GeminiClient.effectiveMode(this, geminiInstalled)) {
+                GeminiClient.AnswerMode.IN_APP ->
+                    if (GeminiClient.apiKey(this).isBlank()) R.string.chat_status_no_key else R.string.chat_status_on
+                GeminiClient.AnswerMode.GEMINI_APP -> R.string.chat_status_gemini_app
+                GeminiClient.AnswerMode.GOOGLE -> R.string.chat_status_google
                 else -> R.string.chat_status_off
             }
         )

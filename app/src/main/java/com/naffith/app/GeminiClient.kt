@@ -20,6 +20,7 @@ object GeminiClient {
     private const val KEY_API = "gemini_api_key"
     private const val KEY_MODEL = "gemini_model"
     private const val KEY_ENABLED = "chat_enabled"
+    private const val KEY_ANSWER_MODE = "answer_mode"
     const val DEFAULT_MODEL = "gemini-flash-latest"
 
     private const val SYSTEM_PROMPT =
@@ -45,9 +46,36 @@ object GeminiClient {
         prefs(context).getString(KEY_MODEL, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_MODEL
     fun setModel(context: Context, model: String) = prefs(context).edit().putString(KEY_MODEL, model.trim()).apply()
 
-    fun isEnabled(context: Context) = prefs(context).getBoolean(KEY_ENABLED, true) && apiKey(context).isNotBlank()
-    fun enabledSetting(context: Context) = prefs(context).getBoolean(KEY_ENABLED, true)
-    fun setEnabled(context: Context, enabled: Boolean) = prefs(context).edit().putBoolean(KEY_ENABLED, enabled).apply()
+    /** مين يجاوب على الكلام اللي مو أمر (سؤال/سالفة). */
+    enum class AnswerMode(val key: String) {
+        /** Gemini داخل نفّذ إذا فيه مفتاح، وإلا تطبيق Gemini، وإلا بحث Google. */
+        AUTO("auto"),
+        IN_APP("in_app"),
+        GEMINI_APP("gemini_app"),
+        GOOGLE("google"),
+        /** يسأل وش تقصد (خرائط، يوتيوب، اتصال…). */
+        ASK("ask"),
+    }
+
+    fun answerMode(context: Context): AnswerMode {
+        val saved = prefs(context).getString(KEY_ANSWER_MODE, null)
+        return AnswerMode.entries.firstOrNull { it.key == saved }
+            // من نسخة قبل: إذا طفّى السوالف = يسأل وش تقصد.
+            ?: if (!prefs(context).getBoolean(KEY_ENABLED, true)) AnswerMode.ASK else AnswerMode.AUTO
+    }
+
+    fun setAnswerMode(context: Context, mode: AnswerMode) =
+        prefs(context).edit().putString(KEY_ANSWER_MODE, mode.key).apply()
+
+    /** الطريقة الفعلية بعد ما نحل «تلقائي». */
+    fun effectiveMode(context: Context, geminiAppInstalled: Boolean): AnswerMode = when (val m = answerMode(context)) {
+        AnswerMode.AUTO -> when {
+            apiKey(context).isNotBlank() -> AnswerMode.IN_APP
+            geminiAppInstalled -> AnswerMode.GEMINI_APP
+            else -> AnswerMode.GOOGLE
+        }
+        else -> m
+    }
 
     /** يرسل [history] (آخرها كلام المستخدم) ويرجع رد Gemini جاهز للنطق. */
     suspend fun reply(context: Context, history: List<Turn>): Result<String> = withContext(Dispatchers.IO) {

@@ -48,6 +48,24 @@ class CommandParserTest {
         assertEquals(Command.OpenMaps("أقرب كافيه", navigate = false), parse("ابحث في الخرائط عن أقرب كافيه"))
     }
 
+    @Test fun moreNavigationPhrases() {
+        assertEquals(Command.OpenMaps("البيت", navigate = true), parse("روح البيت"))
+        assertEquals(Command.OpenMaps("البيت", navigate = true), parse("ودني البيت"))
+        assertEquals(Command.OpenMaps("البيت", navigate = true), parse("البيت"))
+        assertEquals(Command.OpenMaps("الدوام", navigate = true), parse("رجعني الدوام"))
+        assertEquals(Command.OpenMaps("السوق", navigate = true), parse("وديني السوق"))
+    }
+
+    @Test fun moreSearchPhrases() {
+        assertEquals(Command.OpenMaps("أقرب مطعم"), parse("شف لي أقرب مطعم"))
+        assertEquals(Command.OpenMaps("أقرب مطعم"), parse("أقرب مطعم"))
+        assertEquals(Command.OpenMaps("كافيه قريب"), parse("دور لي كافيه قريب"))
+    }
+
+    @Test fun callingHomeContactIsACall() {
+        assertTrue(parse("اتصل على البيت") is Command.Call)
+    }
+
     @Test fun navigateToSpecificPlace() {
         assertEquals(Command.OpenMaps("مطعم البيك", navigate = true), parse("وجهني لمطعم البيك"))
     }

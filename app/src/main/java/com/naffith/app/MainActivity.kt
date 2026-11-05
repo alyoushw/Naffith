@@ -47,6 +47,7 @@ open class MainActivity : AppCompatActivity() {
     private lateinit var transcriptText: TextView
     private lateinit var statusText: TextView
     private lateinit var micButton: ImageButton
+    private var answerText: TextView? = null
     private var handsFreeSwitch: MaterialSwitch? = null
     private var updatingSwitch = false
 
@@ -136,6 +137,13 @@ open class MainActivity : AppCompatActivity() {
         }
         findViewById<android.view.View?>(R.id.settingsButton)?.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        answerText = findViewById(R.id.answerText)
+        // زر «اسأل Gemini» في نافذة المساعد: يفتح تطبيق Gemini (وسؤالك الأخير مكتوب فيه).
+        findViewById<android.view.View?>(R.id.geminiButton)?.setOnClickListener {
+            if (isListening) recognizer?.cancel()
+            setListening(false)
+            if (!launcher.openGemini(lastQuestion)) setStatus(getString(R.string.cannot_open))
         }
 
         // نجهّز الصوت من بدري عشان الرد يطلع على طول.
@@ -443,9 +451,9 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** النافذة الصغيرة ما تبقى معلّقة إذا ما قلت شي. */
+    /** النافذة الصغيرة ما تبقى معلّقة إذا ما قلت شي (إلا إذا فيها جواب تقرأه). */
     private fun closePopupSoon() {
-        if (!isPopup) return
+        if (!isPopup || answerShown) return
         micButton.postDelayed({
             if (!isListening && followUp == null && !isFinishing) finish()
         }, 4000)
@@ -475,6 +483,8 @@ open class MainActivity : AppCompatActivity() {
             CommandParser.parseBest(alternatives)
         }
         transcriptText.text = getString(R.string.heard_format, heard)
+        // أمر جديد (مو سؤال): نشيل جواب السوالف القديم.
+        if (command !is Command.Unknown) showAnswer(null)
         execute(command)
     }
 
@@ -555,10 +565,43 @@ open class MainActivity : AppCompatActivity() {
                     }
                 }
 
-            // مو أمر؟ إذا السوالف مفعّلة نسولف مع Gemini، وإلا نسأل وش يقصد.
-            is Command.Unknown ->
-                if (GeminiClient.isEnabled(this)) chat(command.heard) else askForClarification(command.heard)
+            // مو أمر؟ سؤال أو سالفة: يجاوبه Gemini (داخل نفّذ أو تطبيقه) أو Google، حسب الإعدادات.
+            is Command.Unknown -> answerQuestion(command.heard)
         }
+    }
+
+    private fun answerQuestion(text: String) {
+        lastQuestion = text
+        when (GeminiClient.effectiveMode(this, launcher.isGeminiInstalled())) {
+            GeminiClient.AnswerMode.IN_APP -> chat(text)
+            GeminiClient.AnswerMode.GEMINI_APP -> {
+                setStatus(getString(R.string.opening_gemini))
+                runUnlocked { if (!launcher.openGemini(text)) setStatus(getString(R.string.cannot_open)) }
+            }
+            GeminiClient.AnswerMode.GOOGLE -> {
+                setStatus(getString(R.string.opening_google))
+                runUnlocked { if (!launcher.googleSearch(text)) setStatus(getString(R.string.cannot_open)) }
+            }
+            else -> askForClarification(text)
+        }
+    }
+
+    /** آخر كلام مو أمر، نرسله لتطبيق Gemini لو ضغط زر «اسأل Gemini». */
+    private var lastQuestion = ""
+
+    /** فيه جواب سوالف ظاهر؟ (ما نسكّر النافذة ولا نمسحه لين يسأل شي ثاني). */
+    private var answerShown = false
+
+    private fun showAnswer(text: String?) {
+        val view = answerText
+        answerShown = text != null
+        if (view == null) {
+            if (text != null) setStatus(text)
+            return
+        }
+        view.text = text.orEmpty()
+        view.scrollTo(0, 0)
+        view.visibility = if (text == null) android.view.View.GONE else android.view.View.VISIBLE
     }
 
     // ---------- السوالف (Gemini) ----------
@@ -574,9 +617,14 @@ open class MainActivity : AppCompatActivity() {
             GeminiClient.reply(this@MainActivity, chatHistory)
                 .onSuccess { reply ->
                     chatHistory.add(GeminiClient.Turn(fromUser = false, text = reply))
-                    setStatus(reply)
-                    // في نافذة المساعد نكمّل السالفة: بعد ما يخلص الرد نسمعك مرة ثانية.
-                    say(reply) { if (voiceMode && !isListening && !isFinishing) startListeningWithPermission() }
+                    // الجواب يبقى ظاهر في مكانه، والحالة تحت تتغير بدون ما تمسحه.
+                    showAnswer(reply)
+                    setStatus("")
+                    if (voiceMode && VoicePrefs.speakReplies(this@MainActivity)) {
+                        // ننطق الجواب كامل، وبعد ما يخلص نسمعك عشان تكمّل السالفة.
+                        say(reply) { if (!isListening && !isFinishing) startListeningWithPermission() }
+                    }
+                    // بدون صوت: نخلي الجواب قدامك تقرأه، وتضغط المايك إذا تبي تكمّل.
                 }
                 .onFailure { e ->
                     chatHistory.removeLastOrNull()
@@ -823,7 +871,7 @@ open class MainActivity : AppCompatActivity() {
             micButton.scaleX = 1f
             micButton.scaleY = 1f
         } else if (followUp == null) {
-            setStatus(getString(R.string.status_listening))
+            setStatus(getString(if (answerShown) R.string.chat_more else R.string.status_listening))
         }
     }
 

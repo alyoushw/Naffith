@@ -25,6 +25,10 @@
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
         <package android:name="com.google.android.youtube" />
+        <package android:name="com.google.android.apps.bard" />
+        <intent>
+            <action android:name="android.intent.action.WEB_SEARCH" />
+        </intent>
         <package android:name="com.google.android.apps.maps" />
 
         <intent>

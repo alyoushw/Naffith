@@ -18,6 +18,7 @@ class AppLauncher(
     companion object {
         const val MAPS_PACKAGE = "com.google.android.apps.maps"
         const val YOUTUBE_PACKAGE = "com.google.android.youtube"
+        const val GEMINI_PACKAGE = "com.google.android.apps.bard"
         val WHATSAPP_PACKAGES = listOf("com.whatsapp", "com.whatsapp.w4b")
     }
 
@@ -41,6 +42,32 @@ class AppLauncher(
         )
         return start(Intent(Intent.ACTION_VIEW, web))
     }
+
+    /**
+     * يفتح تطبيق Gemini. إذا فيه سؤال نرسله له جاهز (مشاركة نص)، وإذا ما ثبّت نفتح موقعه.
+     */
+    fun openGemini(question: String): Boolean {
+        if (isInstalled(GEMINI_PACKAGE)) {
+            if (question.isNotBlank()) {
+                val share = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_TEXT, question)
+                    .setPackage(GEMINI_PACKAGE)
+                if (start(share)) return true
+            }
+            context.packageManager.getLaunchIntentForPackage(GEMINI_PACKAGE)?.let { if (start(it)) return true }
+        }
+        return start(Intent(Intent.ACTION_VIEW, Uri.parse("https://gemini.google.com/app")))
+    }
+
+    /** بحث Google: كثير من الأسئلة المعلوماتية يجي جوابها مباشرة فوق النتائج. */
+    fun googleSearch(question: String): Boolean {
+        val search = Intent(Intent.ACTION_WEB_SEARCH).putExtra(SearchManager.QUERY, question)
+        if (start(search)) return true
+        return start(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(question))))
+    }
+
+    fun isGeminiInstalled(): Boolean = isInstalled(GEMINI_PACKAGE)
 
     fun openYouTube(query: String): Boolean {
         if (query.isBlank()) {

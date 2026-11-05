@@ -97,14 +97,45 @@
                 style="@style/SettingsHeader"
                 android:text="@string/chat_title" />
 
-            <com.google.android.material.materialswitch.MaterialSwitch
-                android:id="@+id/chatSwitch"
+            <TextView
+                style="@style/SettingsHint"
+                android:text="@string/answer_mode_hint" />
+
+            <RadioGroup
+                android:id="@+id/answerModeGroup"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="@string/chat_switch"
-                android:textColor="@color/text_primary"
-                android:textSize="15sp" />
+                android:layout_height="wrap_content">
+
+                <RadioButton
+                    android:id="@+id/modeAuto"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/mode_auto" />
+
+                <RadioButton
+                    android:id="@+id/modeInApp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/mode_in_app" />
+
+                <RadioButton
+                    android:id="@+id/modeGeminiApp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/mode_gemini_app" />
+
+                <RadioButton
+                    android:id="@+id/modeGoogle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/mode_google" />
+
+                <RadioButton
+                    android:id="@+id/modeAsk"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/mode_ask" />
+            </RadioGroup>
 
             <TextView
                 android:id="@+id/chatStatus"

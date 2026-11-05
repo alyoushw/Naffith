@@ -16,13 +16,18 @@ object CommandParser {
     private val mapsWords = setOf("خرايط", "خريطه", "ماب", "مابس", "maps", "map", "خرايطي")
     /** كلمات التوجيه: تبدأ الملاحة على طول في خرائط Google. */
     private val navigateWords = setOf(
-        "وجهني", "وجهيني", "ودني", "وديني", "وصلني", "خذني", "دلني", "اتجاهات", "navigate", "directions"
+        "وجهني", "وجهيني", "وجهنا", "ودني", "وديني", "ودنا", "ودينا", "وصلني", "وصلنا", "خذني", "خذنا",
+        "دلني", "دلنا", "روح", "رح", "نروح", "رجعني", "رجعنا", "ارجع", "نرجع", "اتجه", "توجه",
+        "اتجاهات", "navigate", "directions", "take"
     )
     /** كلمات السؤال عن مكان: تعرض نتائج البحث في الخرائط. */
     private val placeWords = setOf("وين", "مكان", "موقع", "طريق")
 
     /** «ابحث/دور … عن أقرب مطعم»: بحث في الخرائط (نتائج تختار منها)، مو توجيه. */
-    private val searchVerbs = setOf("ابحث", "ابحثي", "ابحثلي", "دور", "دوري", "دورلي", "طلعلي", "وريني", "ورني", "اعرض", "اعرضلي", "search", "find")
+    private val searchVerbs = setOf(
+        "ابحث", "ابحثي", "ابحثلي", "دور", "دوري", "دورلي", "طلعلي", "وريني", "ورني", "اعرض", "اعرضلي",
+        "شف", "شوف", "شفلي", "شوفلي", "شوفي", "لقلي", "الق", "search", "find"
+    )
     private val nearWords = setOf("اقرب", "قريب", "قريبه", "قريبين", "حولي", "جنبي", "nearest", "near")
     private val placeNouns = setOf(
         "مطعم", "مطاعم", "صيدليه", "صيدليات", "محطه", "محطات", "بنزينه", "كافيه", "كوفي", "مقهي", "مستشفي",
@@ -101,15 +106,21 @@ object CommandParser {
         return when {
             has(whatsappWords) -> whatsApp(tokens)
             has(youtubeWords) -> Command.SearchYouTube(query(tokens, youtubeWords), play = has(playWords))
-            // «وجهني الى المنزل» / «افتح الخرائط ووديني العثيم مول»: ملاحة مباشرة.
+            // «اتصل على البيت» اتصال، مو توجيه.
+            has(callWords) -> Command.Call(contactNames(tokens, callWords))
+            // «البيت» / «الدوام» لحالها: وديني هناك.
+            tokens.size <= 2 && Places.navigationTarget(tokens.joinToString(" ") { it.original }) in setOf("Home", "Work") ->
+                Command.OpenMaps(tokens.joinToString(" ") { it.original }, navigate = true)
+            // «ابحث/شف لي أقرب مطعم»: بحث في الخرائط (حتى لو فيه «روح»).
+            has(searchVerbs) && (has(nearWords) || has(placeNouns)) -> Command.OpenMaps(query(tokens, searchVerbs + mapsWords))
+            // «وجهني الى المنزل» / «روح البيت» / «افتح الخرائط ووديني العثيم مول»: ملاحة مباشرة.
             has(navigateWords) -> Command.OpenMaps(navigationQuery(tokens), navigate = true)
             has(mapsWords) -> Command.OpenMaps(query(tokens, mapsWords))
             has(placeWords) -> Command.OpenMaps(query(tokens, placeWords))
             // «ارسل لروحي هلا» بدون ذكر واتساب: الرسايل تروح واتساب.
             isMessageToSomeone(tokens) -> whatsApp(tokens)
-            has(callWords) -> Command.Call(contactNames(tokens, callWords))
-            // «ابحث لي عن أقرب مطعم»: بحث في خرائط Google بدون توجيه.
-            has(searchVerbs) && (has(nearWords) || has(placeNouns)) -> Command.OpenMaps(query(tokens, emptySet()))
+            // «أقرب مطعم» / «مطاعم قريبة» بدون فعل: بحث في الخرائط.
+            has(nearWords) && has(placeNouns) -> Command.OpenMaps(query(tokens, emptySet()))
             // «شغل لي أغنية…» بدون ذكر التطبيق ← نفترض يوتيوب، بشرط وجود شيء نبحث عنه.
             has(playWords) ->
                 query(tokens, playWords).takeIf { it.isNotEmpty() }
