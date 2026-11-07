@@ -425,6 +425,32 @@ open class MainActivity : AppCompatActivity() {
     }
 
     private fun startListeningWithPermission() {
+        // نافذة طلب الإذن ما تطلع فوق القفل (تنرفض لحالها)، فإذا الإذن يحتاج طلب والجوال مقفول
+        // نطلب فتح القفل أول. يصير هذا إذا الإذن «اسأل في كل مرة».
+        if (!hasPermission(Manifest.permission.RECORD_AUDIO) && isKeyguardLocked() &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+        ) {
+            setStatus(getString(R.string.unlock_to_allow_mic))
+            awaitingUnlock = true
+            (getSystemService(KEYGUARD_SERVICE) as KeyguardManager).requestDismissKeyguard(
+                this,
+                object : KeyguardManager.KeyguardDismissCallback() {
+                    override fun onDismissSucceeded() {
+                        awaitingUnlock = false
+                        micButton.postDelayed({ if (!isFinishing) startListeningWithPermission() }, 300)
+                    }
+                    override fun onDismissCancelled() {
+                        awaitingUnlock = false
+                        setStatus(getString(R.string.unlock_cancelled))
+                    }
+                    override fun onDismissError() {
+                        awaitingUnlock = false
+                        setStatus(getString(R.string.unlock_cancelled))
+                    }
+                }
+            )
+            return
+        }
         withPermission(
             Manifest.permission.RECORD_AUDIO,
             onDenied = {

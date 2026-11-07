@@ -107,6 +107,7 @@
     <string name="unlock_needed">افتح قفل الجوال عشان أكمّل</string>
     <string name="unlock_to_listen">الجوال مقفول ومحرك التعرف على الكلام ما يسمع فوق القفل. افتح القفل (بصمة أو وجه) وأسمعك على طول.</string>
     <string name="unlock_to_listen_short">افتح القفل وأسمعك</string>
+    <string name="unlock_to_allow_mic">افتح القفل عشان توافق على إذن المايك. وعشان ما يتكرر: معلومات التطبيق ← الأذونات ← الميكروفون ← «السماح فقط أثناء استخدام التطبيق».</string>
     <string name="unlock_cancelled">ما انفتح القفل، ما قدرت أكمّل الأمر.</string>
     <string name="hf_wake_heard">سمعتك! قل أمرك…</string>
     <string name="hf_engine_failed">ما قدر محرك «يا نفّذ» يشتغل على جوالك.</string>
