@@ -232,8 +232,9 @@ open class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         if (isPopup) {
-            // النافذة الصغيرة تسكّر بعد ما فتحنا التطبيق المطلوب (أو لما يطلع منها المستخدم).
-            if (!isChangingConfigurations) finish()
+            // النافذة الصغيرة تسكّر بعد ما فتحنا التطبيق المطلوب (أو لما يطلع منها المستخدم)،
+            // إلا وقت فتح القفل (شاشة البصمة/الرمز تغطيها مؤقتاً).
+            if (!isChangingConfigurations && !awaitingUnlock) finish()
             return
         }
         // إذا «افتح كنافذة مساعد» مفعّل، نسكّر الشاشة الكاملة لما تطلع منها، عشان المرة الجاية
@@ -497,10 +498,69 @@ open class MainActivity : AppCompatActivity() {
                 startListening()
                 return
             }
+            // «ما عندك إذن» وإذن المايك موجود = الجوال مقفول، ومحرك Google ما يسمع فوق القفل.
+            if (error in setOf(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS, ERROR_LANGUAGE_NOT_SUPPORTED, ERROR_LANGUAGE_UNAVAILABLE) &&
+                hasPermission(Manifest.permission.RECORD_AUDIO) && isKeyguardLocked()
+            ) {
+                handleLockedRecognizer()
+                return
+            }
             setStatus(errorMessage(error))
             closePopupSoon()
         }
     }
+
+    /** جرّبنا محركات التعرف الثانية فوق القفل في هالمحاولة؟ */
+    private var lockedFallbackTried = false
+
+    private fun isKeyguardLocked(): Boolean =
+        (getSystemService(KEYGUARD_SERVICE) as KeyguardManager).isKeyguardLocked
+
+    /**
+     * الجوال مقفول: نجرّب أول محرك تعرف ثاني (بعضها، مثل سامسونج، يسمع فوق القفل)، وإذا كلها
+     * رفضت نطلب فتح القفل (بصمة/وجه) ونسمع على طول بعده.
+     */
+    private fun handleLockedRecognizer() {
+        val candidates = VoicePrefs.recognizerCandidates(this)
+        if (!lockedFallbackTried && recognizerIndex + 1 < candidates.size) {
+            recognizerIndex++
+            if (recognizerIndex + 1 >= candidates.size) lockedFallbackTried = true
+            recognizer?.destroy()
+            recognizer = null
+            startListening()
+            return
+        }
+        lockedFallbackTried = false
+        recognizerIndex = 0
+        recognizer?.destroy()
+        recognizer = null
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            setStatus(getString(R.string.unlock_to_listen))
+            return
+        }
+        setStatus(getString(R.string.unlock_to_listen))
+        say(getString(R.string.unlock_to_listen_short))
+        val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        awaitingUnlock = true
+        km.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
+            override fun onDismissSucceeded() {
+                awaitingUnlock = false
+                // انفتح القفل: نسمعك على طول.
+                micButton.postDelayed({ if (!isListening && !isFinishing) startListeningWithPermission() }, 300)
+            }
+            override fun onDismissCancelled() {
+                awaitingUnlock = false
+                setStatus(getString(R.string.unlock_cancelled))
+            }
+            override fun onDismissError() {
+                awaitingUnlock = false
+                setStatus(getString(R.string.unlock_cancelled))
+            }
+        })
+    }
+
+    /** ننتظر المستخدم يفتح القفل؛ النافذة ما تسكّر نفسها خلالها. */
+    private var awaitingUnlock = false
 
     /** النافذة الصغيرة ما تبقى معلّقة إذا ما قلت شي (إلا إذا فيها جواب تقرأه). */
     private fun closePopupSoon() {
@@ -958,10 +1018,20 @@ open class MainActivity : AppCompatActivity() {
         val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && km.isKeyguardLocked) {
             setStatus(getString(R.string.unlock_needed))
+            awaitingUnlock = true
             km.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
-                override fun onDismissSucceeded() = action()
-                override fun onDismissCancelled() = setStatus(getString(R.string.unlock_cancelled))
-                override fun onDismissError() = setStatus(getString(R.string.unlock_cancelled))
+                override fun onDismissSucceeded() {
+                    awaitingUnlock = false
+                    action()
+                }
+                override fun onDismissCancelled() {
+                    awaitingUnlock = false
+                    setStatus(getString(R.string.unlock_cancelled))
+                }
+                override fun onDismissError() {
+                    awaitingUnlock = false
+                    setStatus(getString(R.string.unlock_cancelled))
+                }
             })
         } else {
             action()

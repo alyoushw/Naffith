@@ -105,6 +105,8 @@
     <string name="searching_youtube">أبحث في يوتيوب عن «%1$s»</string>
     <string name="writing_whatsapp">أكتب «%1$s» لـ %2$s في واتساب… اضغط إرسال</string>
     <string name="unlock_needed">افتح قفل الجوال عشان أكمّل</string>
+    <string name="unlock_to_listen">الجوال مقفول ومحرك التعرف على الكلام ما يسمع فوق القفل. افتح القفل (بصمة أو وجه) وأسمعك على طول.</string>
+    <string name="unlock_to_listen_short">افتح القفل وأسمعك</string>
     <string name="unlock_cancelled">ما انفتح القفل، ما قدرت أكمّل الأمر.</string>
     <string name="hf_wake_heard">سمعتك! قل أمرك…</string>
     <string name="hf_engine_failed">ما قدر محرك «يا نفّذ» يشتغل على جوالك.</string>
