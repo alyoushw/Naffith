@@ -212,8 +212,15 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // تحديث جديد؟ نشيك بهدوء كل كم ساعة (في الشاشة الكاملة بس، مو في نافذة المساعد).
-        if (!isPopup) UpdateDialogs.autoCheck(this)
+        // التحديثات: فحص في الخلفية كل ٦ ساعات (إشعار)، وأول ما تفتح مرسال نشيك (مرة كل ساعة بالكثير).
+        Updater.scheduleBackgroundCheck(this)
+        askNotificationsOnce()
+        if (isPopup) {
+            // في النافذة ما نقطع عليك برسالة؛ لو فيه تحديث يطلع إشعار.
+            if (Updater.shouldAutoCheck(this)) lifecycleScope.launch { Updater.notifyIfAvailable(this@MainActivity) }
+        } else {
+            UpdateDialogs.autoCheck(this)
+        }
     }
 
     override fun onPause() {
@@ -768,6 +775,15 @@ open class MainActivity : AppCompatActivity() {
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             ScreenshotSender.captureAndSend(app, contact)
         }, 900)
+    }
+
+    /** أندرويد 13+: نطلب إذن الإشعارات مرة وحدة (عشان إشعار التحديثات). */
+    private fun askNotificationsOnce() {
+        if (Build.VERSION.SDK_INT < 33 || hasPermission(Manifest.permission.POST_NOTIFICATIONS)) return
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        if (prefs.getBoolean("asked_notifications", false)) return
+        prefs.edit().putBoolean("asked_notifications", true).apply()
+        withPermission(Manifest.permission.POST_NOTIFICATIONS, onDenied = {}, onGranted = {})
     }
 
     // ---------- الاختصارات ----------

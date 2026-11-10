@@ -34,6 +34,8 @@ class SettingsActivity : AppCompatActivity() {
     companion object {
         /** رجعنا من تسجيل «اختصار بخطوات». */
         const val EXTRA_MACRO_DONE = "com.naffith.app.extra.MACRO_DONE"
+        /** ضغطت إشعار «تحديث جديد». */
+        const val EXTRA_START_UPDATE = "com.naffith.app.extra.START_UPDATE"
     }
 
     private lateinit var memory: ChoiceMemory
@@ -97,6 +99,10 @@ class SettingsActivity : AppCompatActivity() {
         setupChat()
         setupPlaces()
         handleMacroResult(intent)
+        if (intent?.getBooleanExtra(EXTRA_START_UPDATE, false) == true) {
+            intent.removeExtra(EXTRA_START_UPDATE)
+            UpdateDialogs.manualCheck(this)
+        }
 
         findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.openAsAssistantSwitch).apply {
             isChecked = VoicePrefs.openAsAssistant(this@SettingsActivity)
@@ -285,6 +291,10 @@ class SettingsActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleMacroResult(intent)
+        if (intent.getBooleanExtra(EXTRA_START_UPDATE, false)) {
+            intent.removeExtra(EXTRA_START_UPDATE)
+            UpdateDialogs.manualCheck(this)
+        }
     }
 
     private fun pickApp() {

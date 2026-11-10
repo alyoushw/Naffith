@@ -295,6 +295,9 @@
     <string name="upd_progress">أحمّل التحديث… %1$d٪</string>
     <string name="upd_failed">ما قدرت أحمّل التحديث، جرّب بعد شوي.</string>
     <string name="upd_section">التحديثات</string>
+    <string name="upd_channel">تحديثات مرسال</string>
+    <string name="upd_notif_title">تحديث جديد لمرسال 🎉</string>
+    <string name="upd_notif_text">النسخة %1$s جاهزة، اضغط وحدّث.</string>
     <string name="upd_version">نسختك الحالية: %1$s</string>
     <string name="upd_check_button">تحقق من التحديثات</string>
     <!-- أكثر من أمر / لقطة وإرسال -->

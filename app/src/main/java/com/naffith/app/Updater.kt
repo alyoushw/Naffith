@@ -24,7 +24,9 @@ object Updater {
     private const val PREFS = "settings"
     private const val KEY_LAST_CHECK = "update_last_check"
     private const val KEY_SKIPPED = "update_skipped"
-    private const val CHECK_EVERY_MS = 6 * 60 * 60 * 1000L
+    private const val CHECK_EVERY_MS = 60 * 60 * 1000L
+    private const val KEY_NOTIFIED = "update_notified"
+    private const val CHANNEL = "updates"
 
     data class Release(val versionCode: Int, val name: String, val apkUrl: String, val notes: String)
 
@@ -135,6 +137,61 @@ object Updater {
                 file
             }.getOrNull()
         }
+
+    /**
+     * يشيك ولو فيه نسخة جديدة يرسل إشعار «تحديث جديد لمرسال» (مرة وحدة لكل نسخة).
+     * يستخدمه الفحص في الخلفية، وفتح نافذة المساعد.
+     */
+    suspend fun notifyIfAvailable(context: Context) {
+        val result = check(context)
+        if (result !is CheckResult.Available) return
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getInt(KEY_NOTIFIED, 0) >= result.release.versionCode) return
+        if (showNotification(context, result.release)) {
+            prefs.edit().putInt(KEY_NOTIFIED, result.release.versionCode).apply()
+        }
+    }
+
+    private fun showNotification(context: Context, release: Release): Boolean {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) return false
+        val nm = context.getSystemService(android.app.NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= 26) {
+            nm.createNotificationChannel(
+                android.app.NotificationChannel(CHANNEL, context.getString(R.string.upd_channel), android.app.NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        val open = android.app.PendingIntent.getActivity(
+            context, 7,
+            Intent(context, SettingsActivity::class.java)
+                .putExtra(SettingsActivity.EXTRA_START_UPDATE, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        val n = androidx.core.app.NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_mic)
+            .setContentTitle(context.getString(R.string.upd_notif_title))
+            .setContentText(context.getString(R.string.upd_notif_text, "1.0.${release.versionCode}"))
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        return runCatching { nm.notify(42, n) }.isSuccess
+    }
+
+    /** فحص في الخلفية كل ٦ ساعات (مع إنترنت). */
+    fun scheduleBackgroundCheck(context: Context) {
+        val request = androidx.work.PeriodicWorkRequestBuilder<UpdateWorker>(6, java.util.concurrent.TimeUnit.HOURS)
+            .setConstraints(
+                androidx.work.Constraints.Builder()
+                    .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "mirsal-update-check", androidx.work.ExistingPeriodicWorkPolicy.KEEP, request
+        )
+    }
 
     /** أندرويد يطلب إذن «تثبيت تطبيقات غير معروفة» لمرسال مرة وحدة. */
     fun canInstall(context: Context): Boolean =
