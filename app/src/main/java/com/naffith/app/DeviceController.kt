@@ -48,8 +48,8 @@ class DeviceController(private val context: Context) {
         DeviceAction.RINGER_NORMAL -> ringer(AudioManager.RINGER_MODE_NORMAL, R.string.dev_ring_normal)
         DeviceAction.RINGER_SILENT -> ringer(AudioManager.RINGER_MODE_SILENT, R.string.dev_silent)
 
-        DeviceAction.BRIGHTNESS_UP -> brightnessBy(+25)
-        DeviceAction.BRIGHTNESS_DOWN -> brightnessBy(-25)
+        DeviceAction.BRIGHTNESS_UP -> brightnessBy(+1)
+        DeviceAction.BRIGHTNESS_DOWN -> brightnessBy(-1)
         DeviceAction.BRIGHTNESS_MAX -> brightnessTo(100)
         DeviceAction.BRIGHTNESS_SET -> brightnessTo(cmd.value ?: 50)
         DeviceAction.BRIGHTNESS_AUTO -> withWriteSettings {
@@ -182,15 +182,42 @@ class DeviceController(private val context: Context) {
         return block()
     }
 
-    private fun currentBrightnessPercent(): Int =
-        runCatching { Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) * 100 / 255 }.getOrDefault(50)
+    /**
+     * أندرويد ما يحسب الإضاءة بشكل مستقيم: شريط الإضاءة يمشي على منحنى، ونص الشريط تقريباً
+     * ربع القيمة الخام. فنحوّل بين «النسبة اللي تشوفها» والقيمة الخام بنفس الشكل.
+     */
+    private fun rawToPercent(raw: Int): Int =
+        (Math.pow(raw.coerceIn(0, 255) / 255.0, 1 / 2.2) * 100).toInt().coerceIn(0, 100)
 
-    private fun brightnessBy(delta: Int) = brightnessTo((currentBrightnessPercent() + delta).coerceIn(5, 100))
+    private fun percentToRaw(percent: Int): Int =
+        (Math.pow(percent.coerceIn(1, 100) / 100.0, 2.2) * 255).toInt().coerceIn(1, 255)
+
+    private fun isAutoBrightness(): Boolean = runCatching {
+        Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE) ==
+            Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+    }.getOrDefault(false)
+
+    /** درجات واضحة للرفع والتنزيل. */
+    private val brightnessSteps = listOf(5, 15, 30, 50, 70, 85, 100)
+
+    private fun brightnessBy(direction: Int): Result {
+        // مع الإضاءة التلقائية القيمة المحفوظة ما تمثل اللي تشوفه، فنروح لمستوى واضح.
+        val target = if (isAutoBrightness()) {
+            if (direction < 0) 15 else 85
+        } else {
+            val now = runCatching {
+                rawToPercent(Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
+            }.getOrDefault(50)
+            if (direction < 0) brightnessSteps.lastOrNull { it < now - 2 } ?: 5
+            else brightnessSteps.firstOrNull { it > now + 2 } ?: 100
+        }
+        return brightnessTo(target)
+    }
 
     private fun brightnessTo(percent: Int): Result = withWriteSettings {
         val cr = context.contentResolver
         Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
-        Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, (percent.coerceIn(1, 100) * 255) / 100)
+        Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS, percentToRaw(percent))
         Result(s(R.string.dev_brightness_now, percent))
     }
 

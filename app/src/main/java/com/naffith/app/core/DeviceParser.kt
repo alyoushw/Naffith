@@ -28,16 +28,25 @@ object DeviceParser {
     private val reminderWords = set("ذكرني", "ذكريني")
     private val timerWords = set("مؤقت", "المؤقت", "تايمر", "التايمر", "عداد", "timer", "ستوب ووتش")
 
-    private val volumeWords = set("الصوت", "صوت", "الفوليوم", "volume", "صوت الجوال")
-    private val brightWords = set("الاضاءه", "اضاءه", "الاضاءة", "السطوع", "سطوع", "الشاشه", "brightness")
+    private val volumeWords = set("الصوت", "صوت", "الفوليوم", "فوليوم", "volume", "الساوند", "الصوتيه")
+    private val brightWords = set(
+        "الاضاءه", "اضاءه", "الاضاءة", "اضاءة", "السطوع", "سطوع", "الشاشه", "شاشه", "النور", "الضو", "ضو",
+        "الاناره", "اناره", "brightness", "الاضائه"
+    )
     private val flashWords = set("الكشاف", "كشاف", "الفلاش", "فلاش", "الاتريك", "اتريك", "اللمبه", "flashlight", "torch")
     private val mediaWords = set("الاغنيه", "اغنيه", "الموسيقى", "الموسيقي", "المقطع", "الفيديو", "الصوتيات", "الشيله", "القصيده", "music")
 
-    private val upWords = set("ارفع", "رفع", "علي", "عل", "زيد", "زود", "كبر", "قوي", "up")
-    private val downWords = set("نزل", "انزل", "وطي", "قلل", "خفض", "اخفض", "صغر", "طوي", "خفف", "down")
+    private val upWords = set(
+        "ارفع", "رفع", "علي", "عل", "علّي", "زيد", "زيده", "زود", "كثر", "كبر", "قوي", "اقوى", "اكثر", "اعلى",
+        "ضوي", "نور", "شعشع", "اسطع", "ارفعه", "طلع", "up", "increase", "higher", "louder", "brighter"
+    )
+    private val downWords = set(
+        "نزل", "انزل", "وطي", "وط", "قلل", "قل", "اقل", "خفض", "اخفض", "صغر", "طوي", "خفف", "هدي", "اهدى",
+        "اضعف", "ضعف", "عتم", "غمق", "ظلم", "خافت", "خافته", "غامق", "down", "decrease", "lower", "dim", "quieter"
+    )
     private val onWords = set("شغل", "ولع", "افتح", "فعل", "on")
     private val offWords = set("طف", "طفي", "اطفي", "سكر", "اقفل", "وقف", "الغي", "شيل", "off")
-    private val maxWords = set("كامل", "فل", "اخر", "الاخر", "اعلى", "max")
+    private val maxWords = set("كامل", "فل", "اخر", "الاخر", "max", "كله")
     private val muteWords = set("اكتم", "كتم", "اسكت", "mute")
 
     private val silentWords = set("صامت", "الصامت", "silent")
@@ -64,7 +73,7 @@ object DeviceParser {
         val words = orig.map { n(it) }
         if (words.isEmpty()) return null
         if (words.isEmpty()) return null
-        fun has(s: Set<String>) = words.any { w -> w in s || (w.startsWith("و") && w.drop(1) in s) }
+        fun has(s: Set<String>) = words.any { w -> forms(w).any { it in s } }
         fun hasPhrase(p: String) = n(text).contains(n(p))
 
         // المنبه والتذكير
@@ -148,6 +157,17 @@ object DeviceParser {
         if (has(pauseWords) && (has(mediaWords) || words.size <= 2)) return Command.Device(DeviceAction.MEDIA_PAUSE)
         if (has(resumeWords) && (has(mediaWords) || words.size <= 2)) return Command.Device(DeviceAction.MEDIA_PLAY)
         return null
+    }
+
+    /** الكلمة وصيغها بدون «و» في أولها وبدون ضمير في آخرها («وقللها» ← «قلل»). */
+    private fun forms(w: String): List<String> {
+        val base = mutableListOf(w)
+        if (w.startsWith("و") && w.length > 2) base += w.drop(1)
+        val out = base.toMutableList()
+        for (b in base) for (suffix in listOf("ها", "هم", "لي", "ه", "ي")) {
+            if (b.length > suffix.length + 2 && b.endsWith(suffix)) out += b.dropLast(suffix.length)
+        }
+        return out
     }
 
     /** «بعد ساعة»، «بعد ١٠ دقايق». */

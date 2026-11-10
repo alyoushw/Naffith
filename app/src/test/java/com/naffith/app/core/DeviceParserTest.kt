@@ -79,4 +79,23 @@ class DeviceParserTest {
         assertTrue(p("افتح التيك توك") is Command.OpenApp)
         assertTrue(p("وش تاريخ الدولة السعودية") is Command.Unknown)
     }
+
+    @Test fun brightnessSynonyms() {
+        for (t in listOf("قلل الاضاءه", "خفض الإضاءة", "خفضها الاضاءة", "نزل النور", "خفف السطوع", "وطي الاضاءة",
+            "خل الشاشة اقل", "الإضاءة خافتة", "عتم الشاشة")) {
+            assertEquals(t, d(DeviceAction.BRIGHTNESS_DOWN), p(t))
+        }
+        for (t in listOf("زيد الاضاءه", "ارفع الإضاءة شوي", "علي السطوع", "خل الشاشة اقوى", "نور الشاشة", "زيدها الاضاءة")) {
+            assertEquals(t, d(DeviceAction.BRIGHTNESS_UP), p(t))
+        }
+    }
+
+    @Test fun volumeSynonyms() {
+        for (t in listOf("وطي الصوت", "قلل الصوت", "خفض الصوت", "هدي الصوت", "نزله الصوت", "الصوت اقل")) {
+            assertEquals(t, d(DeviceAction.VOLUME_DOWN), p(t))
+        }
+        for (t in listOf("علي الصوت", "زيد الصوت", "ارفع الصوت شوي", "كثر الصوت", "الصوت اعلى")) {
+            assertEquals(t, d(DeviceAction.VOLUME_UP), p(t))
+        }
+    }
 }
