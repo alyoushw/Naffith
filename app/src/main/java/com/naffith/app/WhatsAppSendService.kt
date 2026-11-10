@@ -58,6 +58,8 @@ class WhatsAppSendService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // «اختصار بخطوات» يعرف متى الشاشة هدأت (خلصت تحميل) عشان يضغط على طول.
+        Macro.lastUiChangeAt = SystemClock.uptimeMillis()
         if (SystemClock.elapsedRealtime() > pendingUntil) return
         // الخدمة تشوف كل التطبيقات، بس زر الإرسال نضغطه في واتساب بس.
         val pkg = event?.packageName?.toString() ?: return

@@ -289,16 +289,35 @@ object Macro {
 
     // ---------- التشغيل ----------
 
-    /** يفتح التطبيق من أوله ويعيد الخطوات وحدة وحدة. */
+    /** آخر مرة تغيّرت فيها الشاشة (تحدّثها خدمة «مرسال: الإرسال والتحكم» مع كل حدث). */
+    @Volatile
+    var lastUiChangeAt = 0L
+
+    /** الشاشة هادية (خلصت تحميل) إذا ما تغيّرت آخر [ms]. */
+    private fun uiIdle(ms: Long) = android.os.SystemClock.uptimeMillis() - lastUiChangeAt >= ms
+
+    private const val POLL_MS = 120L
+    private const val GAP_MS = 250L
+    private const val FIND_TIMEOUT_MS = 6000L
+    private const val IDLE_MS = 350L
+    private const val IDLE_TIMEOUT_MS = 3000L
+
+    /**
+     * يفتح التطبيق من أوله ويعيد الخطوات بسرعة: ما ينتظر وقت ثابت، يدوّر على الزر كل جزء من
+     * الثانية ويضغطه أول ما يطلع. والخطوات اللي بدون كلام (أو السحب) تنتظر الشاشة تهدأ بس.
+     */
     fun play(service: AccessibilityService, rec: Recording, onDone: (Boolean) -> Unit) {
         val launch = service.packageManager.getLaunchIntentForPackage(rec.packageName)
         if (launch == null) {
             onDone(false)
             return
         }
+        lastUiChangeAt = android.os.SystemClock.uptimeMillis()
         service.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
         val handler = Handler(Looper.getMainLooper())
         val (w, h) = screen(service)
+
+        fun inApp() = service.rootInActiveWindow?.packageName?.toString() == rec.packageName
 
         fun runStep(i: Int) {
             if (i >= rec.steps.size) {
@@ -306,13 +325,25 @@ object Macro {
                 return
             }
             val step = rec.steps[i]
-            val next = { handler.postDelayed({ runStep(i + 1) }, 1100) }
+            val next = { handler.postDelayed({ runStep(i + 1) }, GAP_MS) }
+            val started = android.os.SystemClock.uptimeMillis()
+            fun elapsed() = android.os.SystemClock.uptimeMillis() - started
+            val hasLabel = step.text.isNotBlank() || step.desc.isNotBlank() || step.viewId.isNotBlank()
+
+            /** ننتظر التطبيق يكون قدّام والشاشة تهدأ، وبعدها [action]. */
+            fun whenIdle(action: () -> Unit) {
+                if ((inApp() && uiIdle(IDLE_MS)) || elapsed() > IDLE_TIMEOUT_MS) action()
+                else handler.postDelayed({ whenIdle(action) }, POLL_MS)
+            }
+
             if (step.type == "swipe") {
-                swipe(service, step.x * w, step.y * h, step.x2 * w, step.y2 * h, step.durationMs) { next() }
+                whenIdle { swipe(service, step.x * w, step.y * h, step.x2 * w, step.y2 * h, step.durationMs) { next() } }
                 return
             }
-            // ندوّر على الزر بالكلام لين ٨ ثواني (الصفحة يمكن لسا تحمّل)، وبعدها نضغط بالمكان.
-            val started = System.currentTimeMillis()
+            if (!hasLabel) {
+                whenIdle { tap(service, step.x * w, step.y * h) { next() } }
+                return
+            }
             fun attempt() {
                 val target = find(service, rec.packageName, step)
                 when {
@@ -326,22 +357,14 @@ object Macro {
                             tap(service, r.exactCenterX(), r.exactCenterY()) { next() }
                         }
                     }
-                    System.currentTimeMillis() - started < 8000 && (step.text.isNotBlank() || step.desc.isNotBlank() || step.viewId.isNotBlank()) ->
-                        handler.postDelayed({ attempt() }, 500)
-                    else -> {
-                        // ما لقيناه بالكلام: نضغط في نفس المكان اللي ضغطته وقت التسجيل.
-                        if (System.currentTimeMillis() - started < 1500) {
-                            handler.postDelayed({ attempt() }, 500)
-                        } else {
-                            tap(service, step.x * w, step.y * h) { next() }
-                        }
-                    }
+                    elapsed() < FIND_TIMEOUT_MS -> handler.postDelayed({ attempt() }, POLL_MS)
+                    // ما لقيناه بالكلام: نضغط في نفس المكان اللي ضغطته وقت التسجيل.
+                    else -> tap(service, step.x * w, step.y * h) { next() }
                 }
             }
             attempt()
         }
-        // نعطي التطبيق وقت يفتح.
-        handler.postDelayed({ runStep(0) }, 2500)
+        runStep(0)
     }
 
     private fun find(service: AccessibilityService, pkg: String, step: Step): AccessibilityNodeInfo? {
