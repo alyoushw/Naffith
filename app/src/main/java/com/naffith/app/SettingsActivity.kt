@@ -31,6 +31,11 @@ import com.naffith.app.core.Contact
  */
 class SettingsActivity : AppCompatActivity() {
 
+    companion object {
+        /** رجعنا من تسجيل «اختصار بخطوات». */
+        const val EXTRA_MACRO_DONE = "com.naffith.app.extra.MACRO_DONE"
+    }
+
     private lateinit var memory: ChoiceMemory
     private lateinit var aliasList: LinearLayout
     private lateinit var aliasEmpty: TextView
@@ -91,6 +96,7 @@ class SettingsActivity : AppCompatActivity() {
 
         setupChat()
         setupPlaces()
+        handleMacroResult(intent)
 
         findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.openAsAssistantSwitch).apply {
             isChecked = VoicePrefs.openAsAssistant(this@SettingsActivity)
@@ -135,6 +141,7 @@ class SettingsActivity : AppCompatActivity() {
         com.naffith.app.core.ShortcutType.PLACE -> "📍" to R.string.sc_kind_place
         com.naffith.app.core.ShortcutType.TEXT -> "📝" to R.string.sc_kind_text
         com.naffith.app.core.ShortcutType.COMMANDS -> "⚡" to R.string.sc_kind_commands
+        com.naffith.app.core.ShortcutType.MACRO -> "🎬" to R.string.sc_kind_macro
     }
 
     private fun renderShortcuts() {
@@ -186,6 +193,7 @@ class SettingsActivity : AppCompatActivity() {
             com.naffith.app.core.ShortcutType.PLACE to R.string.sc_type_place,
             com.naffith.app.core.ShortcutType.TEXT to R.string.sc_type_text,
             com.naffith.app.core.ShortcutType.COMMANDS to R.string.sc_type_commands,
+            com.naffith.app.core.ShortcutType.MACRO to R.string.sc_type_macro,
         )
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.sc_choose_type)
@@ -207,10 +215,76 @@ class SettingsActivity : AppCompatActivity() {
                     }
                     com.naffith.app.core.ShortcutType.TEXT -> askText(R.string.sc_text_hint, true) { askTriggers(type, it, "") }
                     com.naffith.app.core.ShortcutType.COMMANDS -> askText(R.string.sc_commands_hint, true) { askTriggers(type, it, "") }
+                    com.naffith.app.core.ShortcutType.MACRO -> startMacroRecording()
                 }
             }
             .setNegativeButton(R.string.cancel, null)
             .show()
+    }
+
+    // ---------- اختصار بخطوات ----------
+
+    /** نختار التطبيق، ونشرح الطريقة، وبعدين نفتحه ونبدأ نسجّل الضغطات. */
+    private fun startMacroRecording() {
+        val service = WhatsAppSendService.instance
+        if (service == null) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.sc_type_macro)
+                .setMessage(R.string.dev_need_a11y)
+                .setPositiveButton(R.string.open_settings) { _, _ ->
+                    runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                }
+                .setNegativeButton(R.string.cancel, null)
+                .show()
+            return
+        }
+        val apps = AppResolver(this).installedApps().sortedBy { it.label }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.sc_pick_app)
+            .setItems(apps.map { it.label }.toTypedArray()) { _, which ->
+                val app = apps[which]
+                macroAppLabel = app.label
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.sc_type_macro)
+                    .setMessage(getString(R.string.macro_explain, app.label))
+                    .setPositiveButton(R.string.macro_start) { _, _ ->
+                        if (!Macro.startRecording(service, app.packageName)) {
+                            Toast.makeText(this, R.string.cannot_open, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    .setNegativeButton(R.string.cancel, null)
+                    .show()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private var macroAppLabel = ""
+
+    /** رجعنا من التسجيل: نطلب الكلام اللي يشغّل الاختصار. */
+    private fun handleMacroResult(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_MACRO_DONE, false) != true) return
+        intent.removeExtra(EXTRA_MACRO_DONE)
+        val rec = Macro.lastRecording ?: return
+        Macro.lastRecording = null
+        if (rec.steps.isEmpty()) {
+            Toast.makeText(this, R.string.macro_empty, Toast.LENGTH_LONG).show()
+            return
+        }
+        val label = macroAppLabel.ifBlank {
+            runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(rec.packageName, 0)).toString() }
+                .getOrDefault(rec.packageName)
+        }
+        askTriggers(
+            com.naffith.app.core.ShortcutType.MACRO,
+            Macro.encode(rec),
+            getString(R.string.macro_title, label, rec.steps.size)
+        )
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleMacroResult(intent)
     }
 
     private fun pickApp() {

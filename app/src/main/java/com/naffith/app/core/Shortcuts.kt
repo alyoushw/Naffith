@@ -1,7 +1,7 @@
 package com.naffith.app.core
 
 /** نوع الاختصار: وش ينفّذ لما تقول كلمته. */
-enum class ShortcutType { IMAGE, FILE, APP, LINK, CALL, PLACE, TEXT, COMMANDS }
+enum class ShortcutType { IMAGE, FILE, APP, LINK, CALL, PLACE, TEXT, COMMANDS, MACRO }
 
 /**
  * اختصار يحطه المستخدم: «تقويم أرامكو» ← يفتح صورة التقويم.

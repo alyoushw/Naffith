@@ -59,6 +59,9 @@ class WhatsAppSendService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (SystemClock.elapsedRealtime() > pendingUntil) return
+        // الخدمة تشوف كل التطبيقات، بس زر الإرسال نضغطه في واتساب بس.
+        val pkg = event?.packageName?.toString() ?: return
+        if (pkg != "com.whatsapp" && pkg != "com.whatsapp.w4b") return
         val root = rootInActiveWindow ?: return
         val button = findSendButton(root) ?: return
         if (button.isEnabled && button.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {

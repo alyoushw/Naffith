@@ -249,6 +249,14 @@
     <string name="sc_type_place">📍 يوجّهني لمكان</string>
     <string name="sc_type_text">📝 يقول لي نص محفوظ</string>
     <string name="sc_type_commands">⚡ روتين: ينفّذ أكثر من أمر</string>
+    <string name="sc_type_macro">🎬 خطوات داخل تطبيق (تسجّلها مرة)</string>
+    <string name="sc_kind_macro">خطوات</string>
+    <string name="macro_explain">بفتح «%1$s» وتحت بيطلع زر «● أسجّل».\n\nاضغط في التطبيق عادي، الأزرار اللي توصّلك للمكان اللي تبيه (مثلاً: اللايف ← القناة). تقدر تسحب للتمرير بعد.\n\nلما توصل اضغط الزر «خلصت»، وتكتب الكلام اللي يشغّله.\n\nنصيحة: سجّل وشغّل على نفس الشاشة (مطوية أو مفتوحة).</string>
+    <string name="macro_start">ابدأ التسجيل</string>
+    <string name="macro_recording">● أسجّل (%1$d خطوة) — اضغط هنا لما تخلص</string>
+    <string name="macro_empty">ما سجّلت أي ضغطة، جرّب مرة ثانية.</string>
+    <string name="macro_title">%1$s · %2$d خطوة</string>
+    <string name="macro_playing">أشغّل «%1$s»…</string>
     <string name="sc_pick_app">اختر التطبيق</string>
     <string name="sc_link_hint">الرابط، مثل: example.com</string>
     <string name="sc_place_hint">رابط المكان من خرائط Google أو العنوان</string>

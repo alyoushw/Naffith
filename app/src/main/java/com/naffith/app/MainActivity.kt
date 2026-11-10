@@ -819,6 +819,27 @@ open class MainActivity : AppCompatActivity() {
                 say(sc.value)
             }
             com.naffith.app.core.ShortcutType.COMMANDS -> runRoutine(sc.value.lines().map { it.trim() }.filter { it.isNotEmpty() })
+            com.naffith.app.core.ShortcutType.MACRO -> {
+                val rec = Macro.decode(sc.value)
+                val service = WhatsAppSendService.instance
+                when {
+                    rec == null -> setStatus(getString(R.string.cannot_open))
+                    service == null -> {
+                        setStatus(getString(R.string.dev_need_a11y))
+                        runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                    }
+                    else -> {
+                        setStatus(getString(R.string.macro_playing, name))
+                        val app = applicationContext
+                        runUnlocked {
+                            if (isPopup) finish()
+                            Macro.play(service, rec) { ok ->
+                                if (!ok) android.widget.Toast.makeText(app, R.string.cannot_open, android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
