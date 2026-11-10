@@ -22,6 +22,11 @@ class WhatsAppSendService : AccessibilityService() {
         @Volatile
         private var pendingUntil = 0L
 
+        /** الخدمة الشغالة (للتحكم: قفل الشاشة، لقطة الشاشة). */
+        @Volatile
+        var instance: WhatsAppSendService? = null
+            private set
+
         /** نطلب ضغطة إرسال واحدة في واتساب خلال الثواني الجاية. */
         fun requestSend() {
             pendingUntil = SystemClock.elapsedRealtime() + WINDOW_MS
@@ -40,6 +45,16 @@ class WhatsAppSendService : AccessibilityService() {
                 ComponentName.unflattenFromString(it) == me
             }
         }
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance = this
+    }
+
+    override fun onUnbind(intent: android.content.Intent?): Boolean {
+        instance = null
+        return super.onUnbind(intent)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

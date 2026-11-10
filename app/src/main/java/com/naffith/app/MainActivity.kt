@@ -684,9 +684,45 @@ open class MainActivity : AppCompatActivity() {
 
             is Command.OpenApp -> openApp(command)
 
+            is Command.Device -> runDevice(command)
+
             // مو أمر؟ سؤال أو سالفة: يجاوبه Gemini (داخل مرسال أو تطبيقه) أو Google، حسب الإعدادات.
             is Command.Unknown -> answerQuestion(command.heard)
         }
+    }
+
+    /** التحكم في الجوال: منبه، صوت، إضاءة، كشاف… ونرد بجملة قصيرة. */
+    private fun runDevice(command: Command.Device) {
+        val app = applicationContext
+        // القفل ولقطة الشاشة: نسكّر النافذة أول عشان ما تطلع في الصورة.
+        if (command.action == com.naffith.app.core.DeviceAction.SCREENSHOT ||
+            command.action == com.naffith.app.core.DeviceAction.LOCK_SCREEN
+        ) {
+            if (isPopup) finish()
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                val r = DeviceController(app).execute(command)
+                if (r.needsSetup) android.widget.Toast.makeText(app, r.message, android.widget.Toast.LENGTH_LONG).show()
+            }, 700)
+            return
+        }
+        val opensScreen = command.action in setOf(
+            com.naffith.app.core.DeviceAction.WIFI, com.naffith.app.core.DeviceAction.BLUETOOTH,
+            com.naffith.app.core.DeviceAction.AIRPLANE, com.naffith.app.core.DeviceAction.LOCATION,
+            com.naffith.app.core.DeviceAction.MOBILE_DATA,
+        )
+        val run = {
+            val result = DeviceController(app).execute(command)
+            setStatus(result.message)
+            orb?.state = VoiceOrbView.State.IDLE
+            // في النافذة: نقول النتيجة ونسكّر، إلا إذا يحتاج إذن (فتحنا له الإعداد).
+            if (isPopup && !result.needsSetup) {
+                if (voiceMode && VoicePrefs.speakReplies(this)) say(result.message) { if (!isFinishing) finish() }
+                else micButton.postDelayed({ if (!isFinishing) finish() }, 1800)
+            } else {
+                say(result.message)
+            }
+        }
+        if (opensScreen) runUnlocked(run) else run()
     }
 
     /** «افتح التيك توك (وابحث عن …)» وأي تطبيق ثاني بالاسم. */

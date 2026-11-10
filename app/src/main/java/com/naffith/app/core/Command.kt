@@ -36,6 +36,12 @@ sealed interface Command {
      */
     data class OpenApp(val appName: String, val query: String = "") : Command
 
+    /**
+     * التحكم في الجوال. [value] حسب الأمر: وقت المنبه بالدقائق من منتصف الليل، أو مدة المؤقت
+     * بالثواني، أو النسبة للصوت/الإضاءة. [label] رسالة التذكير.
+     */
+    data class Device(val action: DeviceAction, val value: Int? = null, val label: String = "") : Command
+
     /** أمر غير مفهوم، مع النص الذي سُمع. */
     data class Unknown(val heard: String) : Command
 }

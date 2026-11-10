@@ -195,7 +195,7 @@ class CommandParserTest {
     // ---------- غير مفهوم ----------
 
     @Test fun unknownCommand() {
-        assertEquals(Command.Unknown("كم الساعة"), parse("كم الساعة"))
+        assertEquals(Command.Unknown("مين فاز بالدوري"), parse("مين فاز بالدوري"))
     }
 
     @Test fun emptyIsUnknown() {

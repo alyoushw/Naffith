@@ -97,7 +97,13 @@ object CommandParser {
         return contactNames(tokens, whatsappWords).ifEmpty { listOf(text.trim()).filter { it.isNotEmpty() } }
     }
 
-    fun parse(text: String): Command {
+    /** الوقت الحالي بالدقائق من منتصف الليل (للمنبه). */
+    private fun currentMinutes(): Int {
+        val c = java.util.Calendar.getInstance()
+        return c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE)
+    }
+
+    fun parse(text: String, nowMinutes: Int = currentMinutes()): Command {
         val tokens = stripFillers(ArabicText.tokenize(text))
         if (tokens.isEmpty()) return Command.Unknown(text)
 
@@ -106,6 +112,8 @@ object CommandParser {
         return when {
             has(whatsappWords) -> whatsApp(tokens)
             has(youtubeWords) -> Command.SearchYouTube(query(tokens, youtubeWords), play = has(playWords))
+            // التحكم في الجوال: منبه، صوت، إضاءة، كشاف، موسيقى…
+            DeviceParser.parse(text, nowMinutes) != null -> DeviceParser.parse(text, nowMinutes)!!
             // «اتصل على البيت» اتصال، مو توجيه.
             has(callWords) -> Command.Call(contactNames(tokens, callWords))
             // «افتح التيك توك وابحث عن …» / «ابحث في سناب عن …»: تطبيق معروف.

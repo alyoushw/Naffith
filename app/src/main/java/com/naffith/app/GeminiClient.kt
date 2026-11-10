@@ -52,7 +52,7 @@ object GeminiClient {
 
     /** مين يجاوب على الكلام اللي مو أمر (سؤال/سالفة). */
     enum class AnswerMode(val key: String) {
-        /** Gemini داخل مرسال إذا فيه مفتاح، وإلا تطبيق Gemini، وإلا بحث Google. */
+        /** تطبيق Gemini إذا مثبّت، وإلا Gemini داخل مرسال (بالمفتاح)، وإلا بحث Google. */
         AUTO("auto"),
         IN_APP("in_app"),
         GEMINI_APP("gemini_app"),
@@ -73,9 +73,10 @@ object GeminiClient {
 
     /** الطريقة الفعلية بعد ما نحل «تلقائي». */
     fun effectiveMode(context: Context, geminiAppInstalled: Boolean): AnswerMode = when (val m = answerMode(context)) {
+        // المعلومات أحسن في تطبيق Gemini (صور وتفاصيل)، فهو الأول إذا مثبّت.
         AnswerMode.AUTO -> when {
-            apiKey(context).isNotBlank() -> AnswerMode.IN_APP
             geminiAppInstalled -> AnswerMode.GEMINI_APP
+            apiKey(context).isNotBlank() -> AnswerMode.IN_APP
             else -> AnswerMode.GOOGLE
         }
         else -> m
