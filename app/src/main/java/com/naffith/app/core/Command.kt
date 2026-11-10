@@ -42,6 +42,12 @@ sealed interface Command {
      */
     data class Device(val action: DeviceAction, val value: Int? = null, val label: String = "") : Command
 
+    /** أكثر من أمر في جملة وحدة («حط الجوال صامت وصحني الساعة ٦»). */
+    data class Sequence(val steps: List<Command>) : Command
+
+    /** «صور الشاشة وارسلها لريحانة»: لقطة شاشة وترسل بالواتساب. */
+    data class SendScreenshot(val contactNames: List<String>) : Command
+
     /** أمر غير مفهوم، مع النص الذي سُمع. */
     data class Unknown(val heard: String) : Command
 }

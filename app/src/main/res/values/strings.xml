@@ -289,4 +289,8 @@
     <string name="upd_section">التحديثات</string>
     <string name="upd_version">نسختك الحالية: %1$s</string>
     <string name="upd_check_button">تحقق من التحديثات</string>
+    <!-- أكثر من أمر / لقطة وإرسال -->
+    <string name="shot_sending">أصوّر الشاشة وأرسلها لـ %1$s…</string>
+    <string name="shot_failed">ما قدرت أصوّر الشاشة وأرسلها.</string>
+    <string name="shot_attach_manually">صوّرت الشاشة وفتحت المحادثة، أرفق الصورة من الاستوديو.</string>
 </resources>

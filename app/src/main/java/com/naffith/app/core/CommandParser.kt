@@ -76,7 +76,7 @@ object CommandParser {
     fun parseBest(alternatives: List<String>): Pair<String, Command> {
         val cleaned = alternatives.map { it.trim() }.filter { it.isNotEmpty() }
         for (alt in cleaned) {
-            val cmd = parse(alt)
+            val cmd = parseMulti(alt)
             if (cmd !is Command.Unknown) return alt to cmd
         }
         val first = cleaned.firstOrNull().orEmpty()
@@ -102,6 +102,10 @@ object CommandParser {
         val c = java.util.Calendar.getInstance()
         return c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE)
     }
+
+    /** مثل [parse] بس يفهم لين ٣ أوامر في جملة وحدة («…وبعدين…»، «…وارسلها لفلان»). */
+    fun parseMulti(text: String, nowMinutes: Int = currentMinutes()): Command =
+        MultiCommand.parse(text) { parse(it, nowMinutes) } ?: parse(text, nowMinutes)
 
     fun parse(text: String, nowMinutes: Int = currentMinutes()): Command {
         val tokens = stripFillers(ArabicText.tokenize(text))

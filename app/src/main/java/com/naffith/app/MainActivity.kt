@@ -228,7 +228,7 @@ open class MainActivity : AppCompatActivity() {
         if (isPopup) {
             // النافذة الصغيرة تسكّر بعد ما فتحنا التطبيق المطلوب (أو لما يطلع منها المستخدم)،
             // إلا وقت فتح القفل (شاشة البصمة/الرمز تغطيها مؤقتاً).
-            if (!isChangingConfigurations && !awaitingUnlock) finish()
+            if (!isChangingConfigurations && !awaitingUnlock && !sequenceRunning) finish()
             return
         }
         // إذا «افتح كنافذة مساعد» مفعّل، نسكّر الشاشة الكاملة لما تطلع منها، عشان المرة الجاية
@@ -701,9 +701,73 @@ open class MainActivity : AppCompatActivity() {
 
             is Command.Device -> runDevice(command)
 
+            is Command.Sequence -> runSequence(command.steps)
+
+            is Command.SendScreenshot ->
+                resolveContact(command.contactNames, retry = { Command.SendScreenshot(CommandParser.parseName(it)) }) { contact ->
+                    sendScreenshotTo(contact)
+                }
+
             // مو أمر؟ سؤال أو سالفة: يجاوبه Gemini (داخل مرسال أو تطبيقه) أو Google، حسب الإعدادات.
             is Command.Unknown -> answerQuestion(command.heard)
         }
+    }
+
+    // ---------- أكثر من أمر ----------
+
+    /** نخلي النافذة مفتوحة لين تخلص كل الأوامر. */
+    private var sequenceRunning = false
+
+    /**
+     * ننفذ أوامر التحكم أول (صامت، منبه، إضاءة…)، وبعدها اللي يفتح تطبيقات، وآخر شي الاتصال
+     * أو الواتساب. بين كل أمر يفتح شي والثاني ثانية ونص.
+     */
+    private fun runSequence(steps: List<Command>) {
+        val app = applicationContext
+        val messages = mutableListOf<String>()
+        val later = mutableListOf<Command>()
+        for (step in steps) {
+            if (step is Command.Device && step.action != com.naffith.app.core.DeviceAction.SCREENSHOT &&
+                step.action != com.naffith.app.core.DeviceAction.LOCK_SCREEN
+            ) {
+                messages += DeviceController(app).execute(step).message
+            } else {
+                later += step
+            }
+        }
+        val needsContacts = { c: Command -> c is Command.Call || c is Command.WhatsApp || c is Command.SendScreenshot }
+        val ordered = later.filterNot(needsContacts) + later.filter(needsContacts)
+        if (messages.isNotEmpty()) setStatus(messages.joinToString("، "))
+        if (ordered.isEmpty()) {
+            val summary = messages.joinToString("، ")
+            if (isPopup) {
+                if (voiceMode && VoicePrefs.speakReplies(this)) say(summary) { if (!isFinishing) finish() }
+                else micButton.postDelayed({ if (!isFinishing) finish() }, 2000)
+            } else {
+                say(summary)
+            }
+            return
+        }
+        sequenceRunning = true
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        ordered.forEachIndexed { i, step ->
+            handler.postDelayed({ if (!isDestroyed) execute(step) }, i * 1500L)
+        }
+        // بعد آخر أمر بشوي، النافذة ترجع تتصرف عادي (تسكّر لما تختفي).
+        handler.postDelayed({
+            sequenceRunning = false
+            if (isPopup && !hasWindowFocus() && !isFinishing) finish()
+        }, ordered.size * 1500L + 6000L)
+    }
+
+    /** «صور الشاشة وارسلها لفلان»: نخفي مرسال، نصوّر الشاشة اللي وراه، ونرسلها بالواتساب. */
+    private fun sendScreenshotTo(contact: Contact) {
+        setStatus(getString(R.string.shot_sending, contact.name))
+        val app = applicationContext
+        if (isPopup) finish() else moveTaskToBack(true)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            ScreenshotSender.captureAndSend(app, contact)
+        }, 900)
     }
 
     // ---------- الاختصارات ----------
