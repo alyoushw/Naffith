@@ -212,6 +212,8 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // تحديث جديد؟ نشيك بهدوء كل كم ساعة (في الشاشة الكاملة بس، مو في نافذة المساعد).
+        if (!isPopup) UpdateDialogs.autoCheck(this)
     }
 
     override fun onPause() {

@@ -274,4 +274,19 @@
     <string name="sc_kind_text">نص</string>
     <string name="sc_kind_commands">روتين</string>
     <string name="sc_row">%1$s «%2$s»\n← %3$s</string>
+    <!-- التحديثات -->
+    <string name="upd_title">تحديث جديد 🎉</string>
+    <string name="upd_available">فيه نسخة جديدة من مرسال.\nنسختك: %1$s ← الجديدة: %2$s</string>
+    <string name="upd_now">حدّث الحين</string>
+    <string name="upd_later">بعدين</string>
+    <string name="upd_checking">أتحقق من التحديثات…</string>
+    <string name="upd_latest">عندك آخر نسخة ✅</string>
+    <string name="upd_unreachable">ما قدرت أوصل لصفحة التحديثات. تأكد من الإنترنت، وإن مستودع مرسال في GitHub عام (Public).</string>
+    <string name="upd_need_permission">عشان أثبّت التحديث، فعّل «السماح من هذا المصدر» لمرسال مرة وحدة، وبعدها اضغط «حدّث الحين» مرة ثانية.</string>
+    <string name="upd_downloading">أحمّل التحديث…</string>
+    <string name="upd_progress">أحمّل التحديث… %1$d٪</string>
+    <string name="upd_failed">ما قدرت أحمّل التحديث، جرّب بعد شوي.</string>
+    <string name="upd_section">التحديثات</string>
+    <string name="upd_version">نسختك الحالية: %1$s</string>
+    <string name="upd_check_button">تحقق من التحديثات</string>
 </resources>

@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
+    <!-- تثبيت التحديثات من داخل التطبيق (يوافق عليه المستخدم مرة). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- التحكم في الجوال: المنبه والمؤقت، وعدم الإزعاج/الصامت، وتعديل الإضاءة (يوافق عليه المستخدم مرة). -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />

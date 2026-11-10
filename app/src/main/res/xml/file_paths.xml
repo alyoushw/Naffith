@@ -2,4 +2,6 @@
 <paths>
     <!-- لقطة الشاشة المؤقتة اللي نشاركها مع تطبيق Gemini. -->
     <cache-path name="screens" path="screens/" />
+    <!-- ملف التحديث المحمّل، نفتحه بشاشة التثبيت. -->
+    <cache-path name="updates" path="updates/" />
 </paths>

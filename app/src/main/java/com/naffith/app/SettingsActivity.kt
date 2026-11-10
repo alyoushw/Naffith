@@ -77,6 +77,8 @@ class SettingsActivity : AppCompatActivity() {
         memory = ChoiceMemory(PrefsStore(getSharedPreferences("choices", MODE_PRIVATE)))
         shortcuts = ShortcutStore(this)
         findViewById<MaterialButton>(R.id.addShortcutButton).setOnClickListener { chooseShortcutType() }
+        findViewById<TextView>(R.id.versionText).text = getString(R.string.upd_version, Updater.currentVersionName(this))
+        findViewById<MaterialButton>(R.id.checkUpdateButton).setOnClickListener { UpdateDialogs.manualCheck(this) }
 
         aliasList = findViewById(R.id.aliasList)
         aliasEmpty = findViewById(R.id.aliasEmpty)

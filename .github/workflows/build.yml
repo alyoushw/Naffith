@@ -41,6 +41,11 @@ jobs:
 
       # رابط تحميل مباشر للـ APK (بدون zip): ينشئ Release جديد في كل بناء،
       # والرابط releases/latest/download/Naffith.apk يشير دائماً لآخر نسخة.
+      # ملاحظات الإصدار (تطلع للمستخدم في رسالة «تحديث جديد» داخل التطبيق): عنوان آخر commit.
+      - name: Release notes
+        if: github.event_name != 'pull_request'
+        run: git log -1 --pretty=format:%s > release-notes.txt
+
       - name: Publish release with APK
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
@@ -50,9 +55,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           make_latest: true
           files: Naffith.apk
-          body: |
-            حمّل `Naffith.apk` وثبّته على الجوال.
-            آخر نسخة دائماً على: https://github.com/${{ github.repository }}/releases/latest/download/Naffith.apk
+          body_path: release-notes.txt
 
       - name: Upload test reports
         if: failure()
