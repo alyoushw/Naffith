@@ -66,23 +66,6 @@ class SettingsActivity : AppCompatActivity() {
         setupChat()
         setupPlaces()
 
-        // متى يسمع «يا مرسال»: نعيد تشغيل الخدمة عشان تاخذ الإعداد الجديد.
-        fun bindListen(id: Int, get: (android.content.Context) -> Boolean, set: (android.content.Context, Boolean) -> Unit) {
-            findViewById<com.google.android.material.materialswitch.MaterialSwitch>(id).apply {
-                isChecked = get(this@SettingsActivity)
-                setOnCheckedChangeListener { _, checked ->
-                    set(this@SettingsActivity, checked)
-                    if (HandsFreeService.isEnabled(this@SettingsActivity)) {
-                        HandsFreeService.stop(this@SettingsActivity)
-                        HandsFreeService.start(this@SettingsActivity)
-                    }
-                }
-            }
-        }
-        bindListen(R.id.listenHeadsetSwitch, VoicePrefs::listenOnHeadset, VoicePrefs::setListenOnHeadset)
-        bindListen(R.id.listenChargingSwitch, VoicePrefs::listenOnCharging, VoicePrefs::setListenOnCharging)
-        bindListen(R.id.listenAlwaysSwitch, VoicePrefs::listenAlways, VoicePrefs::setListenAlways)
-
         findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.openAsAssistantSwitch).apply {
             isChecked = VoicePrefs.openAsAssistant(this@SettingsActivity)
             setOnCheckedChangeListener { _, checked -> VoicePrefs.setOpenAsAssistant(this@SettingsActivity, checked) }
@@ -91,30 +74,6 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.speakSwitch).apply {
             isChecked = VoicePrefs.speakReplies(this@SettingsActivity)
             setOnCheckedChangeListener { _, checked -> VoicePrefs.setSpeakReplies(this@SettingsActivity, checked) }
-        }
-
-        val group = findViewById<RadioGroup>(R.id.sensitivityGroup)
-        group.check(
-            when (VoicePrefs.sensitivity(this)) {
-                0 -> R.id.sensitivityNormal
-                2 -> R.id.sensitivityMax
-                else -> R.id.sensitivityHigh
-            }
-        )
-        group.setOnCheckedChangeListener { _, id ->
-            VoicePrefs.setSensitivity(
-                this,
-                when (id) {
-                    R.id.sensitivityNormal -> 0
-                    R.id.sensitivityMax -> 2
-                    else -> 1
-                }
-            )
-            // نعيد تشغيل الخدمة عشان تاخذ الحساسية الجديدة.
-            if (HandsFreeService.isEnabled(this)) {
-                HandsFreeService.stop(this)
-                HandsFreeService.start(this)
-            }
         }
 
         tts = TextToSpeech(this) { status ->

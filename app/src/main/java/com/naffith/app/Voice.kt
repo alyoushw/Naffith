@@ -14,20 +14,8 @@ import java.util.Locale
 object VoicePrefs {
     private const val PREFS = "settings"
     private const val KEY_VOICE = "tts_voice"
-    private const val KEY_SENSITIVITY = "wake_sensitivity"
     private const val KEY_SPEAK = "speak_replies"
     private const val KEY_OPEN_AS_ASSISTANT = "open_as_assistant"
-    private const val KEY_LISTEN_ALWAYS = "listen_always"
-    private const val KEY_LISTEN_HEADSET = "listen_headset"
-    private const val KEY_LISTEN_CHARGING = "listen_charging"
-
-    // متى يسمع «يا مرسال»: افتراضياً في السيارة/السماعات وعلى الشاحن بس، وباقي الوقت المايك مطفّي.
-    fun listenAlways(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LISTEN_ALWAYS, false)
-    fun listenOnHeadset(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LISTEN_HEADSET, true)
-    fun listenOnCharging(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LISTEN_CHARGING, true)
-    fun setListenAlways(c: Context, v: Boolean) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_LISTEN_ALWAYS, v).apply()
-    fun setListenOnHeadset(c: Context, v: Boolean) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_LISTEN_HEADSET, v).apply()
-    fun setListenOnCharging(c: Context, v: Boolean) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_LISTEN_CHARGING, v).apply()
 
     /**
      * أيقونة «مرسال» تفتح نافذة المساعد مباشرة (بدل الشاشة الكاملة). مفيد لزر الجنب في سامسونج
@@ -46,19 +34,6 @@ object VoicePrefs {
     fun setSpeakReplies(context: Context, value: Boolean) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_SPEAK, value).apply()
 
-    /** 0 = عادي، 1 = عالي، 2 = عالي جداً. */
-    fun sensitivity(context: Context): Int =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_SENSITIVITY, 1)
-
-    fun setSensitivity(context: Context, value: Int) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_SENSITIVITY, value).apply()
-
-    /** حد الالتقاط لمحرك كلمة التنبيه: كل ما قل التقط أسهل (ومعه احتمال تشغيل بالغلط). */
-    fun wakeThreshold(context: Context): Float = when (sensitivity(context)) {
-        0 -> 0.25f
-        2 -> 0.08f
-        else -> 0.15f
-    }
 
     fun voiceName(context: Context): String? =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_VOICE, null)

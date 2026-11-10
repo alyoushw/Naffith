@@ -82,51 +82,70 @@ class VoiceOrbView @JvmOverloads constructor(
         super.onDetachedFromWindow()
     }
 
+    private val clip = android.graphics.Path()
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val cx = width / 2f
         val cy = height / 2f
-        val r = min(width, height) / 2f * 0.62f
+        // نصف القطر الأساسي، ونترك مساحة للهالة والنبض عشان ما تنقص الكرة من الأطراف.
+        val base = min(width, height) / 2f * 0.58f
 
         val breath = when (state) {
-            State.IDLE -> 0.04f * sin(time * 1.4f)
-            State.LISTENING -> 0.06f * sin(time * 3f) + 0.22f * level
-            State.THINKING -> 0.05f * sin(time * 2f)
-            State.SPEAKING -> 0.10f * abs(sin(time * 4f))
+            State.IDLE -> 0.03f * sin(time * 1.4f)
+            State.LISTENING -> 0.04f * sin(time * 3f) + 0.16f * level
+            State.THINKING -> 0.04f * sin(time * 2f)
+            State.SPEAKING -> 0.08f * abs(sin(time * 4f))
         }
+        val r = base * (1f + breath)
 
-        // هالة خارجية ناعمة.
+        // 1) هالة خارجية ناعمة ومتمركزة.
         paint.shader = RadialGradient(
-            cx, cy, r * 1.55f * (1 + breath),
-            intArrayOf(withAlpha(colors[1], 90), withAlpha(colors[0], 30), Color.TRANSPARENT),
-            floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP
+            cx, cy, r * 1.6f,
+            intArrayOf(withAlpha(colors[1], 110), withAlpha(colors[0], 40), Color.TRANSPARENT),
+            floatArrayOf(0.55f, 0.75f, 1f), Shader.TileMode.CLAMP
         )
-        canvas.drawCircle(cx, cy, r * 1.55f * (1 + breath), paint)
+        canvas.drawCircle(cx, cy, r * 1.6f, paint)
 
-        // بقع الألوان تدور حول المركز.
+        // 2) الكرة نفسها: دائرة مرتبة، والألوان تدور جواها بدون ما تطلع برا.
+        canvas.save()
+        clip.reset()
+        clip.addCircle(cx, cy, r, android.graphics.Path.Direction.CW)
+        canvas.clipPath(clip)
+        paint.shader = RadialGradient(
+            cx, cy, r, intArrayOf(colors[1], colors[0]), null, Shader.TileMode.CLAMP
+        )
+        canvas.drawCircle(cx, cy, r, paint)
         for (i in colors.indices) {
             val phase = i * (Math.PI.toFloat() / 2f)
-            val orbit = r * (0.22f + 0.12f * level)
-            val bx = cx + cos(time * (0.9f + i * 0.17f) + phase) * orbit
-            val by = cy + sin(time * (1.1f + i * 0.13f) + phase * 1.3f) * orbit
-            val br = r * (0.78f + 0.10f * sin(time * 1.7f + i)) * (1 + breath)
+            val orbit = r * (0.38f + 0.10f * level)
+            val bx = cx + cos(time * (0.8f + i * 0.15f) + phase) * orbit
+            val by = cy + sin(time * (0.8f + i * 0.15f) + phase) * orbit
+            val br = r * 0.85f
             paint.shader = RadialGradient(
                 bx, by, br,
-                intArrayOf(withAlpha(colors[i], 230), withAlpha(colors[i], 120), Color.TRANSPARENT),
-                floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP
+                intArrayOf(withAlpha(colors[i], 235), withAlpha(colors[i], 90), Color.TRANSPARENT),
+                floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP
             )
             canvas.drawCircle(bx, by, br, paint)
         }
-
-        // لمعة بيضاء في القلب.
-        val coreR = r * (0.42f + 0.1f * level) * (1 + breath)
+        // لمعة زجاجية فوق.
         paint.shader = RadialGradient(
-            cx - r * 0.12f, cy - r * 0.12f, coreR,
-            intArrayOf(withAlpha(Color.WHITE, 150), Color.TRANSPARENT),
+            cx - r * 0.3f, cy - r * 0.35f, r * 0.75f,
+            intArrayOf(withAlpha(Color.WHITE, 120), Color.TRANSPARENT),
             null, Shader.TileMode.CLAMP
         )
-        canvas.drawCircle(cx - r * 0.12f, cy - r * 0.12f, coreR, paint)
+        canvas.drawCircle(cx, cy, r, paint)
+        canvas.restore()
+
+        // 3) حافة خفيفة تحدد الدائرة.
         paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = r * 0.03f
+        paint.color = withAlpha(Color.WHITE, 45)
+        canvas.drawCircle(cx, cy, r, paint)
+        paint.style = Paint.Style.FILL
+        paint.color = Color.WHITE // الشفافية تأثر على التدرجات في الإطار الجاي، فنرجعها كاملة
     }
 
     private fun withAlpha(color: Int, alpha: Int) =

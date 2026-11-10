@@ -105,18 +105,6 @@
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/handsFreeSwitch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:background="@drawable/bg_card"
-            android:paddingHorizontal="20dp"
-            android:paddingVertical="14dp"
-            android:text="@string/hf_switch"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
-
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

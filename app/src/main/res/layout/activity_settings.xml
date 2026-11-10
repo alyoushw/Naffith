@@ -232,67 +232,6 @@
                 android:text="@string/voice_choose" />
         </LinearLayout>
 
-        <!-- حساسية يا مرسال -->
-        <LinearLayout style="@style/SettingsCard">
-
-            <TextView
-                style="@style/SettingsHeader"
-                android:text="@string/listen_when_title" />
-
-            <com.google.android.material.materialswitch.MaterialSwitch
-                android:id="@+id/listenHeadsetSwitch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/listen_headset"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.materialswitch.MaterialSwitch
-                android:id="@+id/listenChargingSwitch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/listen_charging"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.materialswitch.MaterialSwitch
-                android:id="@+id/listenAlwaysSwitch"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/listen_always"
-                android:textColor="@color/text_primary" />
-
-            <TextView
-                style="@style/SettingsHeader"
-                android:layout_marginTop="14dp"
-                android:text="@string/sensitivity_title" />
-
-            <TextView
-                style="@style/SettingsHint"
-                android:text="@string/sensitivity_hint" />
-
-            <RadioGroup
-                android:id="@+id/sensitivityGroup"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-                <RadioButton
-                    android:id="@+id/sensitivityNormal"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/sensitivity_normal" />
-
-                <RadioButton
-                    android:id="@+id/sensitivityHigh"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/sensitivity_high" />
-
-                <RadioButton
-                    android:id="@+id/sensitivityMax"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/sensitivity_max" />
-            </RadioGroup>
-        </LinearLayout>
 
         <!-- الإرسال التلقائي -->
         <LinearLayout style="@style/SettingsCard">

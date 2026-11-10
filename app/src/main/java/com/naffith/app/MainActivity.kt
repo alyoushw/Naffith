@@ -1,14 +1,12 @@
 package com.naffith.app
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.KeyguardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
 import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -24,7 +22,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.materialswitch.MaterialSwitch
 import com.naffith.app.core.Command
 import com.naffith.app.core.ChoiceMemory
 import com.naffith.app.core.CommandParser
@@ -51,8 +48,6 @@ open class MainActivity : AppCompatActivity() {
     /** الكرة الصوتية (تتحرك مع الاستماع والتفكير والكلام). */
     private var orb: VoiceOrbView? = null
     private var answerText: TextView? = null
-    private var handsFreeSwitch: MaterialSwitch? = null
-    private var updatingSwitch = false
 
     /** كم مرة ما فهمنا في نافذة المساعد (نوقف بعد مرتين). */
     private var unclearCount = 0
@@ -140,12 +135,6 @@ open class MainActivity : AppCompatActivity() {
         contactsRepository = ContactsRepository(this)
         choiceMemory = ChoiceMemory(PrefsStore(getSharedPreferences("choices", MODE_PRIVATE)))
 
-        handsFreeSwitch = findViewById<MaterialSwitch?>(R.id.handsFreeSwitch)?.also { sw ->
-            sw.isChecked = HandsFreeService.isEnabled(this)
-            sw.setOnCheckedChangeListener { _, checked ->
-                if (!updatingSwitch) onHandsFreeToggled(checked)
-            }
-        }
         findViewById<android.view.View?>(R.id.settingsButton)?.setOnClickListener {
             if (isPopup) {
                 // من النافذة: نفتح التطبيق الكامل (فيه الإعدادات) ونسكّر النافذة.
@@ -186,7 +175,15 @@ open class MainActivity : AppCompatActivity() {
         }
 
         // نجهّز الصوت من بدري عشان الرد يطلع على طول.
-        if (isPopup || HandsFreeService.isEnabled(this)) initTts()
+        if (isPopup) initTts()
+
+        // أندرويد 15 يرسم التطبيق تحت شريط الحالة والتنقل؛ نبعد المحتوى عنهم عشان ما ينقص.
+        val root = findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
 
         micButton.setOnClickListener { onMicClicked() }
         orb = findViewById<VoiceOrbView?>(R.id.orbView)?.also { it.setOnClickListener { onMicClicked() } }
@@ -215,14 +212,6 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        HandsFreeService.setAppVisible(true)
-        // إذا الوضع مفعّل والخدمة انقفلت (إعادة تشغيل الجوال مثلاً) نشغّلها والتطبيق ظاهر.
-        if (HandsFreeService.isEnabled(this) && HandsFreeService.instance == null &&
-            hasPermission(Manifest.permission.RECORD_AUDIO)
-        ) {
-            HandsFreeService.start(this)
-        }
-        setSwitchChecked(HandsFreeService.isEnabled(this))
     }
 
     override fun onPause() {
@@ -230,7 +219,6 @@ open class MainActivity : AppCompatActivity() {
         if (isListening) recognizer?.cancel()
         if (!awaitingUnlock) cloudJob?.cancel()
         setListening(false)
-        HandsFreeService.setAppVisible(false)
     }
 
     override fun onStop() {
@@ -277,90 +265,11 @@ open class MainActivity : AppCompatActivity() {
             }
             intent.getBooleanExtra(EXTRA_START_LISTENING, false) ||
                 intent.action == Intent.ACTION_VOICE_COMMAND || intent.action == Intent.ACTION_ASSIST -> {
-                val fromWake = intent.getBooleanExtra(EXTRA_FROM_WAKE_WORD, false)
                 intent.removeExtra(EXTRA_START_LISTENING)
-                intent.removeExtra(EXTRA_FROM_WAKE_WORD)
                 intent.action = null
-                if (fromWake) {
-                    voiceMode = true
-                    showOverLockScreen(true)
-                    transcriptText.text = ""
-                    setStatus(getString(R.string.hf_wake_heard))
-                    // نرد بصوت «هلا والله» وبعدها نسمع (عشان المايك ما يلقط صوتنا).
-                    say(getString(R.string.hf_greeting)) { if (!isListening) startListeningWithPermission() }
-                } else {
-                    micButton.postDelayed({ if (!isListening) startListeningWithPermission() }, 400)
-                }
+                micButton.postDelayed({ if (!isListening) startListeningWithPermission() }, 400)
             }
         }
-    }
-
-    // ---------- وضع «يا مرسال» ----------
-
-    private fun onHandsFreeToggled(enabled: Boolean) {
-        if (!enabled) {
-            HandsFreeService.setEnabled(this, false)
-            HandsFreeService.stop(this)
-            setStatus(getString(R.string.hf_disabled))
-            return
-        }
-        withPermission(
-            Manifest.permission.RECORD_AUDIO,
-            onDenied = {
-                setSwitchChecked(false)
-                handleDenied(Manifest.permission.RECORD_AUDIO, R.string.perm_mic_denied, R.string.perm_permanent_mic)
-            }
-        ) {
-            requestNotificationsThen {
-                HandsFreeService.setEnabled(this, true)
-                HandsFreeService.start(this)
-                setSwitchChecked(true)
-                setStatus(getString(R.string.hf_enabled))
-                if (!Settings.canDrawOverlays(this)) askOverlayPermission() else askIgnoreBatteryOptimizations()
-            }
-        }
-    }
-
-    /** أندرويد 13+: إذن الإشعارات للإشعار الثابت. رفضه ما يوقف الوضع. */
-    private fun requestNotificationsThen(next: () -> Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            withPermission(Manifest.permission.POST_NOTIFICATIONS, onDenied = next, onGranted = next)
-        } else {
-            next()
-        }
-    }
-
-    private fun askOverlayPermission() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.hf_overlay_title)
-            .setMessage(R.string.hf_overlay_message)
-            .setPositiveButton(R.string.open_settings) { _, _ ->
-                runCatching {
-                    startActivity(
-                        Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-                    )
-                }
-            }
-            .setNegativeButton(R.string.hf_overlay_later) { _, _ -> askIgnoreBatteryOptimizations() }
-            .show()
-    }
-
-    /** بعض الجوالات تقفل الخدمات في الخلفية لتوفير البطارية؛ نطلب استثناء «مرسال». */
-    @SuppressLint("BatteryLife")
-    private fun askIgnoreBatteryOptimizations() {
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        if (pm.isIgnoringBatteryOptimizations(packageName)) return
-        runCatching {
-            startActivity(
-                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
-            )
-        }
-    }
-
-    private fun setSwitchChecked(checked: Boolean) {
-        updatingSwitch = true
-        handsFreeSwitch?.isChecked = checked
-        updatingSwitch = false
     }
 
     override fun onDestroy() {
@@ -1199,7 +1108,6 @@ open class MainActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_COMMANDS = "com.naffith.app.extra.COMMANDS"
         const val EXTRA_START_LISTENING = "com.naffith.app.extra.START_LISTENING"
-        const val EXTRA_FROM_WAKE_WORD = "com.naffith.app.extra.FROM_WAKE_WORD"
         /** افتح الشاشة الكاملة حتى لو «افتح كنافذة مساعد» مفعّل. */
         const val EXTRA_FULL_APP = "com.naffith.app.extra.FULL_APP"
         private const val LANGUAGE = "ar-SA"

@@ -7,6 +7,8 @@
 
     <LinearLayout
         android:id="@+id/popupCard"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
@@ -92,7 +94,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:clipChildren="false"
             android:gravity="center"
+            android:minHeight="72dp"
             android:orientation="horizontal">
 
             <TextView
