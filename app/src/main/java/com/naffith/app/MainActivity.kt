@@ -710,7 +710,7 @@ open class MainActivity : AppCompatActivity() {
             com.naffith.app.core.DeviceAction.AIRPLANE, com.naffith.app.core.DeviceAction.LOCATION,
             com.naffith.app.core.DeviceAction.MOBILE_DATA,
         )
-        val run = {
+        val run: () -> Unit = {
             val result = DeviceController(app).execute(command)
             setStatus(result.message)
             orb?.state = VoiceOrbView.State.IDLE
