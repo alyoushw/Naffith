@@ -33,8 +33,8 @@ import com.k2fsa.sherpa.onnx.OnlineModelConfig
 import com.k2fsa.sherpa.onnx.OnlineTransducerModelConfig
 
 /**
- * وضع «يا نفّذ»: خدمة في المقدمة تسمع باستمرار بمحرك كلمة تنبيه يشتغل على الجوال نفسه
- * (sherpa-onnx، بدون إنترنت)، حتى والشاشة مطفية. لما يلتقط «يا نفّذ» يهز الجوال ويفتح
+ * وضع «يا مرسال»: خدمة في المقدمة تسمع باستمرار بمحرك كلمة تنبيه يشتغل على الجوال نفسه
+ * (sherpa-onnx، بدون إنترنت)، حتى والشاشة مطفية. لما يلتقط «يا مرسال» يهز الجوال ويفتح
  * الشاشة الرئيسية (فوق قفل الشاشة) وهي تسمع الأمر.
  *
  * المايك يبقى مفتوح بشكل ثابت (ما يطفي ويشتغل)، ويتوقف بس لما التطبيق نفسه مفتوح.
@@ -113,14 +113,15 @@ class HandsFreeService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        acquireWakeLock()
-        if (!appVisible) startDetection()
+        registerTriggers()
+        evaluate()
         return START_STICKY
     }
 
     override fun onDestroy() {
         instance = null
         handler.removeCallbacksAndMessages(null)
+        unregisterTriggers()
         stopDetection()
         spotter?.release()
         spotter = null
@@ -131,7 +132,96 @@ class HandsFreeService : Service() {
     private fun onAppVisibilityChanged(visible: Boolean) {
         handler.post {
             if (instance == null) return@post
-            if (visible) stopDetection() else handler.postDelayed({ if (!appVisible) startDetection() }, 700)
+            if (visible) evaluate() else handler.postDelayed({ evaluate() }, 700)
+        }
+    }
+
+    // ---------- متى نسمع: السيارة/السماعات، الشاحن، أو دايماً ----------
+
+    private val audioManager by lazy { getSystemService(AUDIO_SERVICE) as android.media.AudioManager }
+
+    private val deviceCallback = object : android.media.AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) = evaluate()
+        override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) = evaluate()
+    }
+
+    private val powerReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            // نعطي النظام لحظة يحدّث حالة الشحن.
+            handler.postDelayed({ evaluate() }, 500)
+        }
+    }
+
+    private var triggersRegistered = false
+
+    private fun registerTriggers() {
+        if (triggersRegistered) return
+        triggersRegistered = true
+        audioManager.registerAudioDeviceCallback(deviceCallback, handler)
+        ContextCompat.registerReceiver(
+            this, powerReceiver,
+            android.content.IntentFilter().apply {
+                addAction(Intent.ACTION_POWER_CONNECTED)
+                addAction(Intent.ACTION_POWER_DISCONNECTED)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    private fun unregisterTriggers() {
+        if (!triggersRegistered) return
+        triggersRegistered = false
+        runCatching { audioManager.unregisterAudioDeviceCallback(deviceCallback) }
+        runCatching { unregisterReceiver(powerReceiver) }
+    }
+
+    /** سماعات/سيارة متصلة بالبلوتوث (أو سماعة سلكية). */
+    private fun headsetConnected(): Boolean {
+        val types = mutableSetOf(
+            android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) types += android.media.AudioDeviceInfo.TYPE_USB_HEADSET
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            types += android.media.AudioDeviceInfo.TYPE_BLE_HEADSET
+            types += android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER
+        }
+        return audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).any { it.type in types }
+    }
+
+    private fun isCharging(): Boolean {
+        val bm = getSystemService(BATTERY_SERVICE) as android.os.BatteryManager
+        return bm.isCharging
+    }
+
+    /** ليش نسمع الحين (أو null = ما نسمع). */
+    private fun listenReason(): Int? = when {
+        VoicePrefs.listenAlways(this) -> R.string.hf_reason_always
+        VoicePrefs.listenOnHeadset(this) && headsetConnected() -> R.string.hf_reason_headset
+        VoicePrefs.listenOnCharging(this) && isCharging() -> R.string.hf_reason_charging
+        else -> null
+    }
+
+    /** نشغّل أو نوقف المايك حسب الظروف، ونحدّث الإشعار. */
+    private fun evaluate() {
+        if (instance == null) return
+        val reason = if (appVisible) null else listenReason()
+        if (reason != null) {
+            acquireWakeLock()
+            startDetection()
+        } else {
+            stopDetection()
+            wakeLock?.let { if (it.isHeld) it.release() }
+        }
+        val text = when {
+            appVisible -> getString(R.string.hf_paused_app)
+            reason != null -> getString(R.string.hf_listening_because, getString(reason))
+            else -> getString(R.string.hf_waiting)
+        }
+        runCatching {
+            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(text))
         }
     }
 
@@ -234,7 +324,7 @@ class HandsFreeService : Service() {
         }
     }
 
-    // ---------- بعد ما نسمع «يا نفّذ» ----------
+    // ---------- بعد ما نسمع «يا مرسال» ----------
 
     private fun onWakeWord() {
         worker = null
@@ -247,7 +337,7 @@ class HandsFreeService : Service() {
         val started = Settings.canDrawOverlays(this) && runCatching { startActivity(intent) }.isSuccess
         if (!started) showAlert(getString(R.string.hf_tap_to_talk), intent)
         // إذا التطبيق ما انفتح (أو انقفل بسرعة) نرجع نسمع.
-        handler.postDelayed({ if (!appVisible && instance != null) startDetection() }, 5000)
+        handler.postDelayed({ if (instance != null) evaluate() }, 5000)
     }
 
     private fun vibrate() {
@@ -291,7 +381,7 @@ class HandsFreeService : Service() {
         )
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(text: String = getString(R.string.hf_notification_text)): Notification {
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
@@ -301,7 +391,7 @@ class HandsFreeService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_mic)
             .setContentTitle(getString(R.string.hf_notification_title))
-            .setContentText(getString(R.string.hf_notification_text))
+            .setContentText(text)
             .setOngoing(true)
             .setContentIntent(open)
             .addAction(0, getString(R.string.hf_stop), stop)

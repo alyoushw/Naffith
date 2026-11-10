@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
 
-    <!-- وضع «يا نفّذ»: الاستماع في الخلفية وفتح التطبيقات منها. -->
+    <!-- وضع «يا مرسال»: الاستماع في الخلفية وفتح التطبيقات منها. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -102,7 +102,7 @@
             </intent-filter>
         </activity>
 
-        <!-- نافذة المساعد الصغيرة: «يا نفّذ»، زر المساعد، زر الأوامر الصوتية في السماعة. -->
+        <!-- نافذة المساعد الصغيرة: «يا مرسال»، زر المساعد، زر الأوامر الصوتية في السماعة. -->
         <activity
             android:name=".VoicePopupActivity"
             android:excludeFromRecents="true"
@@ -131,7 +131,7 @@
         </provider>
 
         <!--
-            أيقونة ثانية «مساعد نفّذ» تفتح النافذة الصغيرة على طول. تقدر تحطها على ضغطتين على زر
+            أيقونة ثانية «مساعد مرسال» تفتح النافذة الصغيرة على طول. تقدر تحطها على ضغطتين على زر
             الجنب (Galaxy: الزر الجانبي ← الضغط مرتين ← فتح تطبيق) وتخلي Gemini على الضغط المطوّل.
         -->
         <activity-alias
@@ -152,8 +152,8 @@
             android:label="@string/settings_title" />
 
         <!--
-            «نفّذ» كمساعد افتراضي (الإعدادات ← التطبيقات الافتراضية ← المساعد الرقمي):
-            ضغطة مطوّلة على زر التشغيل تفتح نافذة نفّذ، بدون ما يبقى المايك شغال.
+            «مرسال» كمساعد افتراضي (الإعدادات ← التطبيقات الافتراضية ← المساعد الرقمي):
+            ضغطة مطوّلة على زر التشغيل تفتح نافذة مرسال، بدون ما يبقى المايك شغال.
         -->
         <service
             android:name=".assistant.NaffithAssistantService"

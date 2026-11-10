@@ -10,16 +10,27 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
 import java.util.Locale
 
-/** إعدادات الصوت المشتركة بين الشاشات: صوت الرد، وحساسية «يا نفّذ». */
+/** إعدادات الصوت المشتركة بين الشاشات: صوت الرد، وحساسية «يا مرسال». */
 object VoicePrefs {
     private const val PREFS = "settings"
     private const val KEY_VOICE = "tts_voice"
     private const val KEY_SENSITIVITY = "wake_sensitivity"
     private const val KEY_SPEAK = "speak_replies"
     private const val KEY_OPEN_AS_ASSISTANT = "open_as_assistant"
+    private const val KEY_LISTEN_ALWAYS = "listen_always"
+    private const val KEY_LISTEN_HEADSET = "listen_headset"
+    private const val KEY_LISTEN_CHARGING = "listen_charging"
+
+    // متى يسمع «يا مرسال»: افتراضياً في السيارة/السماعات وعلى الشاحن بس، وباقي الوقت المايك مطفّي.
+    fun listenAlways(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LISTEN_ALWAYS, false)
+    fun listenOnHeadset(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LISTEN_HEADSET, true)
+    fun listenOnCharging(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LISTEN_CHARGING, true)
+    fun setListenAlways(c: Context, v: Boolean) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_LISTEN_ALWAYS, v).apply()
+    fun setListenOnHeadset(c: Context, v: Boolean) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_LISTEN_HEADSET, v).apply()
+    fun setListenOnCharging(c: Context, v: Boolean) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_LISTEN_CHARGING, v).apply()
 
     /**
-     * أيقونة «نفّذ» تفتح نافذة المساعد مباشرة (بدل الشاشة الكاملة). مفيد لزر الجنب في سامسونج
+     * أيقونة «مرسال» تفتح نافذة المساعد مباشرة (بدل الشاشة الكاملة). مفيد لزر الجنب في سامسونج
      * اللي يعرض تطبيق واحد لكل حزمة.
      */
     fun openAsAssistant(context: Context): Boolean =
@@ -85,7 +96,7 @@ object VoicePrefs {
     /**
      * محركات التعرف على الكلام بالترتيب اللي نجرّبه. null = محرك النظام الافتراضي.
      *
-     * - محرك النظام الافتراضي أول (هو اللي كان شغال عندك)، إلا إذا صار «نفّذ» نفسه
+     * - محرك النظام الافتراضي أول (هو اللي كان شغال عندك)، إلا إذا صار «مرسال» نفسه
      *   (لما يكون المساعد الافتراضي) عشان ما نكلّم نفسنا.
      * - بعده محرك تطبيق Google (يدعم العربي السعودي)، وبعدها الباقي.
      * - محركات «على الجهاز فقط» (ذكاء النظام/تحويل النص لكلام) آخر شي لأنها غالباً بدون عربي.
@@ -115,7 +126,7 @@ object VoicePrefs {
         else SpeechRecognizer.createSpeechRecognizer(context)
     }
 
-    /** فيه محرك تعرف غير «نفّذ» نفسه؟ */
+    /** فيه محرك تعرف غير «مرسال» نفسه؟ */
     fun isRecognitionAvailable(context: Context): Boolean =
         context.packageManager.queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
             .any { it.serviceInfo.packageName != context.packageName }

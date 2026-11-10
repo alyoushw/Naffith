@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 
 /**
  * الشاشة الرئيسية. [VoicePopupActivity] يستخدم نفس المنطق بس كنافذة صغيرة تطلع لما
- * تنادي «يا نفّذ» أو تضغط زر المساعد.
+ * تنادي «يا مرسال» أو تضغط زر المساعد.
  */
 open class MainActivity : AppCompatActivity() {
 
@@ -48,6 +48,8 @@ open class MainActivity : AppCompatActivity() {
     private lateinit var transcriptText: TextView
     private lateinit var statusText: TextView
     private lateinit var micButton: ImageButton
+    /** الكرة الصوتية (تتحرك مع الاستماع والتفكير والكلام). */
+    private var orb: VoiceOrbView? = null
     private var answerText: TextView? = null
     private var handsFreeSwitch: MaterialSwitch? = null
     private var updatingSwitch = false
@@ -68,7 +70,7 @@ open class MainActivity : AppCompatActivity() {
     /** إذا سألنا المستخدم سؤال (مثل «على مين تتصل؟») فالجواب الجاي يروح هنا بدل المحلل. */
     private var followUp: ((String) -> Command)? = null
 
-    /** جينا من «يا نفّذ»: نرد ونسأل بالصوت. */
+    /** جينا من «يا مرسال»: نرد ونسأل بالصوت. */
     private var voiceMode = false
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -121,7 +123,7 @@ open class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (shouldOpenAsAssistant(intent)) {
-            // أيقونة «نفّذ» (أو زر الجنب) تفتح نافذة المساعد على طول.
+            // أيقونة «مرسال» (أو زر الجنب) تفتح نافذة المساعد على طول.
             startActivity(Intent(this, VoicePopupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             finish()
             @Suppress("DEPRECATION")
@@ -187,6 +189,7 @@ open class MainActivity : AppCompatActivity() {
         if (isPopup || HandsFreeService.isEnabled(this)) initTts()
 
         micButton.setOnClickListener { onMicClicked() }
+        orb = findViewById<VoiceOrbView?>(R.id.orbView)?.also { it.setOnClickListener { onMicClicked() } }
     }
 
     /** فتح من الأيقونة والخيار مفعّل (وما طلب التطبيق الكامل من زر ⚙️ في النافذة). */
@@ -225,6 +228,7 @@ open class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         if (isListening) recognizer?.cancel()
+        if (!awaitingUnlock) cloudJob?.cancel()
         setListening(false)
         HandsFreeService.setAppVisible(false)
     }
@@ -245,7 +249,7 @@ open class MainActivity : AppCompatActivity() {
         voiceMode = false
     }
 
-    /** أوامر جاية من وضع «يا نفّذ» أو من زر الأوامر الصوتية في السماعة. */
+    /** أوامر جاية من وضع «يا مرسال» أو من زر الأوامر الصوتية في السماعة. */
     private fun handleLaunchIntent(intent: Intent?) {
         intent ?: return
         if (isPopup) {
@@ -291,7 +295,7 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ---------- وضع «يا نفّذ» ----------
+    // ---------- وضع «يا مرسال» ----------
 
     private fun onHandsFreeToggled(enabled: Boolean) {
         if (!enabled) {
@@ -341,7 +345,7 @@ open class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    /** بعض الجوالات تقفل الخدمات في الخلفية لتوفير البطارية؛ نطلب استثناء «نفّذ». */
+    /** بعض الجوالات تقفل الخدمات في الخلفية لتوفير البطارية؛ نطلب استثناء «مرسال». */
     @SuppressLint("BatteryLife")
     private fun askIgnoreBatteryOptimizations() {
         val pm = getSystemService(POWER_SERVICE) as PowerManager
@@ -367,9 +371,9 @@ open class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    // ---------- الرد بالصوت (وضع «يا نفّذ») ----------
+    // ---------- الرد بالصوت (وضع «يا مرسال») ----------
 
-    /** ننطق النص (لو جينا من «يا نفّذ»)، وبعد ما نخلص ننفذ [then]. */
+    /** ننطق النص (لو جينا من «يا مرسال»)، وبعد ما نخلص ننفذ [then]. */
     private fun say(text: String, then: (() -> Unit)? = null) {
         if (!voiceMode || !VoicePrefs.speakReplies(this)) {
             then?.let { micButton.postDelayed(it, 400) }
@@ -386,7 +390,11 @@ open class MainActivity : AppCompatActivity() {
             return
         }
         val id = "u" + System.nanoTime()
-        if (then != null) utteranceCallbacks[id] = then
+        utteranceCallbacks[id] = {
+            if (!isListening) orb?.state = VoiceOrbView.State.IDLE
+            then?.invoke()
+        }
+        orb?.state = VoiceOrbView.State.SPEAKING
         engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
     }
 
@@ -416,6 +424,11 @@ open class MainActivity : AppCompatActivity() {
     // ---------- التعرف على الصوت ----------
 
     private fun onMicClicked() {
+        if (cloudJob?.isActive == true) {
+            cloudJob?.cancel()
+            setListening(false)
+            return
+        }
         if (isListening) {
             recognizer?.stopListening()
             return
@@ -425,6 +438,14 @@ open class MainActivity : AppCompatActivity() {
     }
 
     private fun startListeningWithPermission() {
+        // الجوال مقفول ومعنا مفتاح Gemini: نسمع بنفسنا ونخلي Gemini يفهم، لأن محرك Google
+        // ما يسمع فوق القفل.
+        if (isKeyguardLocked() && GeminiClient.apiKey(this).isNotBlank() &&
+            hasPermission(Manifest.permission.RECORD_AUDIO)
+        ) {
+            startCloudListening()
+            return
+        }
         // نافذة طلب الإذن ما تطلع فوق القفل (تنرفض لحالها)، فإذا الإذن يحتاج طلب والجوال مقفول
         // نطلب فتح القفل أول. يصير هذا إذا الإذن «اسأل في كل مرة».
         if (!hasPermission(Manifest.permission.RECORD_AUDIO) && isKeyguardLocked() &&
@@ -490,6 +511,7 @@ open class MainActivity : AppCompatActivity() {
             val scale = 1f + (rmsdB.coerceIn(0f, 10f) / 50f)
             micButton.scaleX = scale
             micButton.scaleY = scale
+            orb?.setLevel(rmsdB)
         }
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() = setStatus(getString(R.string.status_processing))
@@ -536,6 +558,51 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ---------- السماع عن طريق Gemini (والجوال مقفول) ----------
+
+    private var cloudJob: kotlinx.coroutines.Job? = null
+
+    /** نسجّل كلامك لين تسكت، ونرسله لـ Gemini يحوّله نص، وبعدها ننفذه مثل أي أمر. */
+    private fun startCloudListening() {
+        if (cloudJob?.isActive == true) return
+        recognizer?.cancel()
+        setListening(true)
+        if (followUp == null) transcriptText.text = ""
+        cloudJob = lifecycleScope.launch {
+            val wav = try {
+                CloudListener.record { level -> runOnUiThread { orb?.setLevel(level * 12f - 2f) } }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
+            setListening(false)
+            if (wav == null) {
+                setStatus(getString(R.string.err_no_match))
+                closePopupSoon()
+                return@launch
+            }
+            setStatus(getString(R.string.status_processing))
+            orb?.state = VoiceOrbView.State.THINKING
+            GeminiClient.transcribe(this@MainActivity, wav)
+                .onSuccess { text ->
+                    orb?.state = VoiceOrbView.State.IDLE
+                    if (text.isBlank()) {
+                        setStatus(getString(R.string.err_no_match))
+                        closePopupSoon()
+                    } else {
+                        handleSpeech(listOf(text))
+                    }
+                }
+                .onFailure { e ->
+                    orb?.state = VoiceOrbView.State.IDLE
+                    val err = e as? GeminiClient.ChatError
+                    setStatus(getString(err?.userMessage ?: R.string.chat_failed))
+                    closePopupSoon()
+                }
+        }
+    }
+
     /** جرّبنا محركات التعرف الثانية فوق القفل في هالمحاولة؟ */
     private var lockedFallbackTried = false
 
@@ -547,6 +614,10 @@ open class MainActivity : AppCompatActivity() {
      * رفضت نطلب فتح القفل (بصمة/وجه) ونسمع على طول بعده.
      */
     private fun handleLockedRecognizer() {
+        if (GeminiClient.apiKey(this).isNotBlank()) {
+            startCloudListening()
+            return
+        }
         val candidates = VoicePrefs.recognizerCandidates(this)
         if (!lockedFallbackTried && recognizerIndex + 1 < candidates.size) {
             recognizerIndex++
@@ -704,7 +775,7 @@ open class MainActivity : AppCompatActivity() {
 
             is Command.OpenApp -> openApp(command)
 
-            // مو أمر؟ سؤال أو سالفة: يجاوبه Gemini (داخل نفّذ أو تطبيقه) أو Google، حسب الإعدادات.
+            // مو أمر؟ سؤال أو سالفة: يجاوبه Gemini (داخل مرسال أو تطبيقه) أو Google، حسب الإعدادات.
             is Command.Unknown -> answerQuestion(command.heard)
         }
     }
@@ -840,9 +911,11 @@ open class MainActivity : AppCompatActivity() {
         unclearCount = 0
         chatHistory.add(GeminiClient.Turn(fromUser = true, text = text))
         setStatus(getString(if (imageJpeg != null) R.string.chat_looking else R.string.chat_thinking))
+        orb?.state = VoiceOrbView.State.THINKING
         lifecycleScope.launch {
             GeminiClient.reply(this@MainActivity, chatHistory, imageJpeg)
                 .onSuccess { reply ->
+                    orb?.state = VoiceOrbView.State.IDLE
                     chatHistory.add(GeminiClient.Turn(fromUser = false, text = reply))
                     // الجواب يبقى ظاهر في مكانه، والحالة تحت تتغير بدون ما تمسحه.
                     showAnswer(reply)
@@ -854,6 +927,7 @@ open class MainActivity : AppCompatActivity() {
                     // بدون صوت: نخلي الجواب قدامك تقرأه، وتضغط المايك إذا تبي تكمّل.
                 }
                 .onFailure { e ->
+                    orb?.state = VoiceOrbView.State.IDLE
                     chatHistory.removeLastOrNull()
                     val err = e as? GeminiClient.ChatError
                     val msg = getString(err?.userMessage ?: R.string.chat_failed)
@@ -866,7 +940,7 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** نسأل سؤال (بالصوت في وضع «يا نفّذ») ونفتح المايك مباشرة لسماع الجواب. */
+    /** نسأل سؤال (بالصوت في وضع «يا مرسال») ونفتح المايك مباشرة لسماع الجواب. */
     private fun askFollowUp(question: String, toCommand: (String) -> Command) {
         setStatus(question)
         followUp = toCommand
@@ -1039,7 +1113,7 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** إذا الجوال مقفول (جينا من «يا نفّذ» والشاشة مطفية) نطلب فتح القفل قبل نفتح تطبيق ثاني. */
+    /** إذا الجوال مقفول (جينا من «يا مرسال» والشاشة مطفية) نطلب فتح القفل قبل نفتح تطبيق ثاني. */
     private fun runUnlocked(action: () -> Unit) {
         val km = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && km.isKeyguardLocked) {
@@ -1064,7 +1138,7 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** نطلع فوق قفل الشاشة ونشغّلها، بس لما نادانا «يا نفّذ». */
+    /** نطلع فوق قفل الشاشة ونشغّلها، بس لما نادانا «يا مرسال». */
     private fun showOverLockScreen(show: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(show)
@@ -1104,6 +1178,7 @@ open class MainActivity : AppCompatActivity() {
     private fun setListening(listening: Boolean) {
         isListening = listening
         micButton.setBackgroundResource(if (listening) R.drawable.bg_mic_listening else R.drawable.bg_mic_idle)
+        orb?.state = if (listening) VoiceOrbView.State.LISTENING else VoiceOrbView.State.IDLE
         if (!listening) {
             micButton.scaleX = 1f
             micButton.scaleY = 1f

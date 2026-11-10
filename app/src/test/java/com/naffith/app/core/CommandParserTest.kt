@@ -184,6 +184,10 @@ class CommandParserTest {
         assertEquals("علي", (parse("اتصل علي") as Command.Call).contactNames.first())
     }
 
+    @Test fun wakeWordIsIgnored() {
+        assertEquals("خالد", (parse("يا مرسال اتصل على خالد") as Command.Call).contactNames.first())
+    }
+
     @Test fun callWithoutName() {
         assertEquals(Command.Call(emptyList()), parse("اتصل"))
     }

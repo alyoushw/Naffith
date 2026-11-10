@@ -26,8 +26,8 @@ import com.naffith.app.core.ChoiceMemory
 import com.naffith.app.core.Contact
 
 /**
- * الإعدادات: الأسماء الثانية المحفوظة (عرض/حذف/إضافة)، تفعيل «نفّذ» كمساعد افتراضي،
- * اختيار صوت الرد، حساسية «يا نفّذ»، والإرسال التلقائي في واتساب.
+ * الإعدادات: الأسماء الثانية المحفوظة (عرض/حذف/إضافة)، تفعيل «مرسال» كمساعد افتراضي،
+ * اختيار صوت الرد، حساسية «يا مرسال»، والإرسال التلقائي في واتساب.
  */
 class SettingsActivity : AppCompatActivity() {
 
@@ -65,6 +65,23 @@ class SettingsActivity : AppCompatActivity() {
 
         setupChat()
         setupPlaces()
+
+        // متى يسمع «يا مرسال»: نعيد تشغيل الخدمة عشان تاخذ الإعداد الجديد.
+        fun bindListen(id: Int, get: (android.content.Context) -> Boolean, set: (android.content.Context, Boolean) -> Unit) {
+            findViewById<com.google.android.material.materialswitch.MaterialSwitch>(id).apply {
+                isChecked = get(this@SettingsActivity)
+                setOnCheckedChangeListener { _, checked ->
+                    set(this@SettingsActivity, checked)
+                    if (HandsFreeService.isEnabled(this@SettingsActivity)) {
+                        HandsFreeService.stop(this@SettingsActivity)
+                        HandsFreeService.start(this@SettingsActivity)
+                    }
+                }
+            }
+        }
+        bindListen(R.id.listenHeadsetSwitch, VoicePrefs::listenOnHeadset, VoicePrefs::setListenOnHeadset)
+        bindListen(R.id.listenChargingSwitch, VoicePrefs::listenOnCharging, VoicePrefs::setListenOnCharging)
+        bindListen(R.id.listenAlwaysSwitch, VoicePrefs::listenAlways, VoicePrefs::setListenAlways)
 
         findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.openAsAssistantSwitch).apply {
             isChecked = VoicePrefs.openAsAssistant(this@SettingsActivity)

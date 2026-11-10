@@ -232,11 +232,37 @@
                 android:text="@string/voice_choose" />
         </LinearLayout>
 
-        <!-- حساسية يا نفّذ -->
+        <!-- حساسية يا مرسال -->
         <LinearLayout style="@style/SettingsCard">
 
             <TextView
                 style="@style/SettingsHeader"
+                android:text="@string/listen_when_title" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/listenHeadsetSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/listen_headset"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/listenChargingSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/listen_charging"
+                android:textColor="@color/text_primary" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/listenAlwaysSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/listen_always"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                style="@style/SettingsHeader"
+                android:layout_marginTop="14dp"
                 android:text="@string/sensitivity_title" />
 
             <TextView

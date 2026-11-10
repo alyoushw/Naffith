@@ -24,11 +24,15 @@ object GeminiClient {
     const val DEFAULT_MODEL = "gemini-flash-latest"
 
     private const val SYSTEM_PROMPT =
-        "أنت «نفّذ»، مساعد صوتي سعودي ودود في جوال المستخدم. رد باللهجة السعودية البيضاء، " +
+        "أنت «مرسال»، مساعد صوتي سعودي ودود في جوال المستخدم. رد باللهجة السعودية البيضاء، " +
             "بجمل قصيرة وطبيعية تنقال بالصوت (من جملة إلى ثلاث جمل)، بدون تنسيق ولا رموز ولا قوائم ولا إيموجي. " +
             "إذا طلب شي يحتاج تطبيق (اتصال، واتساب، خرائط، يوتيوب) قل له يقولها كأمر مثل: «اتصل على فلان»."
 
     /** [detail] سبب تقني قصير (رمز HTTP أو سبب التوقف) نعرضه عشان نعرف وش صار. */
+    private const val TRANSCRIBE_PROMPT =
+        "اكتب حرفياً الكلام المنطوق في هذا التسجيل (غالباً لهجة سعودية، وفيه أسماء أشخاص وتطبيقات وأماكن). " +
+            "اكتب النص فقط كما انقال، بدون ترجمة ولا شرح ولا علامات تنصيص. إذا ما فيه كلام واضح اكتب -"
+
     class ChatError(val userMessage: Int, val detail: String = "", val code: Int = 0) : Exception(detail)
 
     /** موديلات بديلة لما يكون الموديل الأساسي مضغوط. */
@@ -48,7 +52,7 @@ object GeminiClient {
 
     /** مين يجاوب على الكلام اللي مو أمر (سؤال/سالفة). */
     enum class AnswerMode(val key: String) {
-        /** Gemini داخل نفّذ إذا فيه مفتاح، وإلا تطبيق Gemini، وإلا بحث Google. */
+        /** Gemini داخل مرسال إذا فيه مفتاح، وإلا تطبيق Gemini، وإلا بحث Google. */
         AUTO("auto"),
         IN_APP("in_app"),
         GEMINI_APP("gemini_app"),
@@ -114,28 +118,68 @@ object GeminiClient {
                 .put("generationConfig", JSONObject().put("maxOutputTokens", 4096).put("temperature", 0.8))
                 .toString()
 
-            // إذا الموديل مضغوط (503) أو خلص حده (429) أو مو موجود (404)، نجرّب موديل ثاني تلقائياً،
-            // وكل موديل نعطيه محاولتين.
-            val models = (listOf(model(context)) + FALLBACK_MODELS).distinct()
-            var lastError: ChatError? = null
-            for (m in models) {
-                val url = URL(
-                    "https://generativelanguage.googleapis.com/v1beta/models/" +
-                        URLEncoder.encode(m, "UTF-8") + ":generateContent"
-                )
-                for (attempt in 0 until 2) {
-                    try {
-                        return@runCatching send(url, key, body)
-                    } catch (e: ChatError) {
-                        lastError = e
-                        if (e.code !in RETRYABLE) throw e
-                        if (e.code == 404 || e.code == 429) break // ننتقل للموديل اللي بعده على طول
-                        Thread.sleep(800)
-                    }
+            generate(context, key, body)
+        }.recoverCatching { e ->
+            if (e is ChatError) throw e
+            throw ChatError(R.string.chat_network, e.javaClass.simpleName)
+        }
+    }
+
+    /**
+     * يرسل الطلب لـ Gemini. إذا الموديل مضغوط (503) أو خلص حده (429) أو مو موجود (404)، نجرّب
+     * موديل ثاني تلقائياً، وكل موديل نعطيه محاولتين.
+     */
+    private fun generate(context: Context, key: String, body: String): String {
+        val models = (listOf(model(context)) + FALLBACK_MODELS).distinct()
+        var lastError: ChatError? = null
+        for (m in models) {
+            val url = URL(
+                "https://generativelanguage.googleapis.com/v1beta/models/" +
+                    URLEncoder.encode(m, "UTF-8") + ":generateContent"
+            )
+            for (attempt in 0 until 2) {
+                try {
+                    return send(url, key, body)
+                } catch (e: ChatError) {
+                    lastError = e
+                    if (e.code !in RETRYABLE) throw e
+                    if (e.code == 404 || e.code == 429) break // ننتقل للموديل اللي بعده على طول
+                    Thread.sleep(800)
                 }
             }
-            throw lastError?.let { if (it.code in 500..599) ChatError(R.string.chat_busy, it.detail, it.code) else it }
-                ?: ChatError(R.string.chat_failed)
+        }
+        throw lastError?.let { if (it.code in 500..599) ChatError(R.string.chat_busy, it.detail, it.code) else it }
+            ?: ChatError(R.string.chat_failed)
+    }
+
+    /**
+     * يحوّل تسجيل صوتي (WAV) لنص عن طريق Gemini. نستخدمه لما محرك التعرف في الجوال ما يسمع
+     * (مثلاً والجوال مقفول). يرجع نص فاضي إذا ما فيه كلام.
+     */
+    suspend fun transcribe(context: Context, wav: ByteArray): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val key = apiKey(context)
+            if (key.isBlank()) throw ChatError(R.string.chat_no_key)
+            val parts = JSONArray()
+                .put(JSONObject().put("text", TRANSCRIBE_PROMPT))
+                .put(
+                    JSONObject().put(
+                        "inlineData",
+                        JSONObject()
+                            .put("mimeType", "audio/wav")
+                            .put("data", android.util.Base64.encodeToString(wav, android.util.Base64.NO_WRAP))
+                    )
+                )
+            val body = JSONObject()
+                .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", parts)))
+                .put("generationConfig", JSONObject().put("maxOutputTokens", 2048).put("temperature", 0.0))
+                .toString()
+            try {
+                generate(context, key, body).trim().trim('"', '«', '»').takeUnless { it == "-" }.orEmpty()
+            } catch (e: ChatError) {
+                // «ما فيه كلام» يرجع أحياناً رد فاضي؛ نعتبره ما سمعنا شي.
+                if (e.detail == "empty") "" else throw e
+            }
         }.recoverCatching { e ->
             if (e is ChatError) throw e
             throw ChatError(R.string.chat_network, e.javaClass.simpleName)
