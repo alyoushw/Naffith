@@ -14,6 +14,36 @@
             style="@style/SettingsTitle"
             android:text="@string/settings_title" />
 
+        <!-- الاختصارات -->
+        <LinearLayout style="@style/SettingsCard">
+
+            <TextView
+                style="@style/SettingsHeader"
+                android:text="@string/sc_title" />
+
+            <TextView
+                style="@style/SettingsHint"
+                android:text="@string/sc_hint" />
+
+            <LinearLayout
+                android:id="@+id/shortcutList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/shortcutEmpty"
+                style="@style/SettingsHint"
+                android:text="@string/sc_empty" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/addShortcutButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/sc_add" />
+        </LinearLayout>
+
         <!-- الأسماء الثانية -->
         <LinearLayout style="@style/SettingsCard">
 

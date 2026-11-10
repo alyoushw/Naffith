@@ -23,13 +23,17 @@ object SavedPlaces {
     fun clear(context: Context, kind: Kind) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(kind.key).apply()
 
-    /** يحفظ الرابط/العنوان ويرجع الوجهة اللي استخرجناها (أو null إذا فاضي). */
-    suspend fun save(context: Context, kind: Kind, input: String): String? {
+    /** يحوّل رابط خرائط Google (حتى المختصر) أو عنوان إلى وجهة للملاحة. */
+    suspend fun resolveDestination(input: String): String? {
         val text = input.trim()
         if (text.isEmpty()) return null
         val full = if (MapsLink.isShortLink(text)) expandShortLink(text) ?: text else text
-        val dest = MapsLink.extractDestination(full)
-        if (dest.isBlank()) return null
+        return MapsLink.extractDestination(full).ifBlank { null }
+    }
+
+    /** يحفظ الرابط/العنوان ويرجع الوجهة اللي استخرجناها (أو null إذا فاضي). */
+    suspend fun save(context: Context, kind: Kind, input: String): String? {
+        val dest = resolveDestination(input) ?: return null
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(kind.key, dest).apply()
         return dest
     }

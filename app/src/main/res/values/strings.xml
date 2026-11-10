@@ -235,4 +235,43 @@
     <string name="dev_date">اليوم %1$s</string>
     <string name="dev_locked">قفلت الشاشة</string>
     <string name="dev_screenshot">صوّرت الشاشة</string>
+    <!-- الاختصارات -->
+    <string name="sc_title">الاختصارات</string>
+    <string name="sc_hint">كلمة تقولها ← شي ينفّذه. مثل «تقويم أرامكو» يفتح صورة التقويم، أو «وقت النوم» يحط الجوال صامت ويضبط المنبه.</string>
+    <string name="sc_empty">ما عندك اختصارات للحين.</string>
+    <string name="sc_add">＋ إضافة اختصار</string>
+    <string name="sc_choose_type">وش تبي الاختصار يسوي؟</string>
+    <string name="sc_type_image">🖼️ يفتح صورة من الاستوديو</string>
+    <string name="sc_type_file">📄 يفتح ملف (PDF وغيره)</string>
+    <string name="sc_type_app">📱 يفتح تطبيق</string>
+    <string name="sc_type_link">🔗 يفتح رابط أو موقع</string>
+    <string name="sc_type_call">📞 يتصل على أحد</string>
+    <string name="sc_type_place">📍 يوجّهني لمكان</string>
+    <string name="sc_type_text">📝 يقول لي نص محفوظ</string>
+    <string name="sc_type_commands">⚡ روتين: ينفّذ أكثر من أمر</string>
+    <string name="sc_pick_app">اختر التطبيق</string>
+    <string name="sc_link_hint">الرابط، مثل: example.com</string>
+    <string name="sc_place_hint">رابط المكان من خرائط Google أو العنوان</string>
+    <string name="sc_text_hint">النص اللي تبيه يقوله لك</string>
+    <string name="sc_commands_hint">كل أمر في سطر، مثل:
+حط الجوال صامت
+صحني الساعة ٦
+نزّل الإضاءة</string>
+    <string name="sc_triggers_title">وش تقول عشان يشتغل؟</string>
+    <string name="sc_triggers_hint">مثل: تقويم أرامكو، التقويم (افصل بين الصيغ بفاصلة)</string>
+    <string name="sc_next">التالي</string>
+    <string name="sc_saved">انحفظ الاختصار «%1$s»</string>
+    <string name="sc_delete_confirm">أحذف الاختصار «%1$s»؟</string>
+    <string name="sc_opening">أفتح «%1$s»…</string>
+    <string name="sc_file_missing">ما قدرت أفتح الملف، يمكن انحذف أو انتقل. عدّل الاختصار من الإعدادات.</string>
+    <string name="sc_routine_done">خلّصت الروتين</string>
+    <string name="sc_kind_image">صورة</string>
+    <string name="sc_kind_file">ملف</string>
+    <string name="sc_kind_app">تطبيق</string>
+    <string name="sc_kind_link">رابط</string>
+    <string name="sc_kind_call">اتصال</string>
+    <string name="sc_kind_place">مكان</string>
+    <string name="sc_kind_text">نص</string>
+    <string name="sc_kind_commands">روتين</string>
+    <string name="sc_row">%1$s «%2$s»\n← %3$s</string>
 </resources>

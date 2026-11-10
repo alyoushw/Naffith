@@ -593,6 +593,19 @@ open class MainActivity : AppCompatActivity() {
     private fun handleSpeech(alternatives: List<String>) {
         val pending = followUp
         followUp = null
+        // اختصارات المستخدم أول («تقويم أرامكو» ← صورة التقويم).
+        if (pending == null) {
+            val shortcuts = ShortcutStore(this).all()
+            if (shortcuts.isNotEmpty()) {
+                for (alt in alternatives.filter { it.isNotBlank() }) {
+                    val sc = com.naffith.app.core.ShortcutMatcher.find(alt, shortcuts) ?: continue
+                    transcriptText.text = getString(R.string.heard_format, alt.trim())
+                    showAnswer(null)
+                    runShortcut(sc)
+                    return
+                }
+            }
+        }
         val (heard, command) = if (pending != null) {
             val text = alternatives.first { it.isNotBlank() }.trim()
             text to pending(text)
@@ -688,6 +701,86 @@ open class MainActivity : AppCompatActivity() {
 
             // مو أمر؟ سؤال أو سالفة: يجاوبه Gemini (داخل مرسال أو تطبيقه) أو Google، حسب الإعدادات.
             is Command.Unknown -> answerQuestion(command.heard)
+        }
+    }
+
+    // ---------- الاختصارات ----------
+
+    private fun runShortcut(sc: com.naffith.app.core.Shortcut) {
+        val name = sc.triggers.firstOrNull().orEmpty()
+        when (sc.type) {
+            com.naffith.app.core.ShortcutType.IMAGE, com.naffith.app.core.ShortcutType.FILE -> {
+                setStatus(getString(R.string.sc_opening, name))
+                runUnlocked {
+                    val uri = Uri.parse(sc.value)
+                    val type = runCatching { contentResolver.getType(uri) }.getOrNull()
+                        ?: if (sc.type == com.naffith.app.core.ShortcutType.IMAGE) "image/*" else "*/*"
+                    val ok = runCatching {
+                        startActivity(
+                            Intent(Intent.ACTION_VIEW).setDataAndType(uri, type)
+                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }.isSuccess
+                    if (!ok) setStatus(getString(R.string.sc_file_missing))
+                }
+            }
+            com.naffith.app.core.ShortcutType.APP -> {
+                setStatus(getString(R.string.opening_app, sc.title.ifBlank { name }))
+                runUnlocked {
+                    val intent = packageManager.getLaunchIntentForPackage(sc.value)
+                    if (intent == null || runCatching { startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isFailure) {
+                        setStatus(getString(R.string.cannot_open))
+                    }
+                }
+            }
+            com.naffith.app.core.ShortcutType.LINK -> {
+                setStatus(getString(R.string.sc_opening, name))
+                runUnlocked {
+                    val url = if (sc.value.contains("://")) sc.value else "https://" + sc.value
+                    if (runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isFailure) {
+                        setStatus(getString(R.string.cannot_open))
+                    }
+                }
+            }
+            com.naffith.app.core.ShortcutType.CALL -> placeCall(Contact("", sc.title.ifBlank { name }, sc.value))
+            com.naffith.app.core.ShortcutType.PLACE -> {
+                setStatus(getString(R.string.navigating_to, name))
+                runUnlocked { if (!launcher.navigate(sc.value)) setStatus(getString(R.string.cannot_open)) }
+            }
+            com.naffith.app.core.ShortcutType.TEXT -> {
+                showAnswer(sc.value)
+                setStatus(name)
+                say(sc.value)
+            }
+            com.naffith.app.core.ShortcutType.COMMANDS -> runRoutine(sc.value.lines().map { it.trim() }.filter { it.isNotEmpty() })
+        }
+    }
+
+    /**
+     * روتين: أوامر التحكم (صامت، منبه، إضاءة…) تتنفذ كلها ورا بعض، وآخر أمر يفتح شي
+     * (تطبيق، خرائط…) يتنفذ في الأخير.
+     */
+    private fun runRoutine(lines: List<String>) {
+        val app = applicationContext
+        val messages = mutableListOf<String>()
+        var opener: Command? = null
+        for (line in lines) {
+            when (val cmd = CommandParser.parse(line)) {
+                is Command.Device -> messages += DeviceController(app).execute(cmd).message
+                is Command.Unknown -> {}
+                else -> opener = cmd
+            }
+        }
+        val summary = messages.joinToString("، ").ifBlank { getString(R.string.sc_routine_done) }
+        setStatus(summary)
+        val next = opener
+        if (next != null) {
+            execute(next)
+        } else if (isPopup) {
+            if (voiceMode && VoicePrefs.speakReplies(this)) say(summary) { if (!isFinishing) finish() }
+            else micButton.postDelayed({ if (!isFinishing) finish() }, 2000)
+        } else {
+            say(summary)
         }
     }
 

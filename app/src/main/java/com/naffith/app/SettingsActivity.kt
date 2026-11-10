@@ -49,10 +49,34 @@ class SettingsActivity : AppCompatActivity() {
         renderAliases()
     }
 
+    // ---------- الاختصارات ----------
+
+    private lateinit var shortcuts: ShortcutStore
+    private var pendingShortcutType: com.naffith.app.core.ShortcutType? = null
+
+    /** اختيار صورة أو ملف للاختصار (ونحفظ صلاحية فتحه دايماً). */
+    private val pickDocument = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val type = pendingShortcutType ?: return@registerForActivityResult
+        if (uri == null) return@registerForActivityResult
+        runCatching {
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        askTriggers(type, uri.toString(), displayName(uri))
+    }
+
+    /** اختيار جهة اتصال للاختصار. */
+    private val pickShortcutContact = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data ?: return@registerForActivityResult
+        val contact = readPickedContact(uri) ?: return@registerForActivityResult
+        askTriggers(com.naffith.app.core.ShortcutType.CALL, contact.number, contact.name)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
         memory = ChoiceMemory(PrefsStore(getSharedPreferences("choices", MODE_PRIVATE)))
+        shortcuts = ShortcutStore(this)
+        findViewById<MaterialButton>(R.id.addShortcutButton).setOnClickListener { chooseShortcutType() }
 
         aliasList = findViewById(R.id.aliasList)
         aliasEmpty = findViewById(R.id.aliasEmpty)
@@ -86,6 +110,7 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        renderShortcuts()
         renderAliases()
         renderAssistant()
         renderA11y()
@@ -96,6 +121,162 @@ class SettingsActivity : AppCompatActivity() {
         tts = null
         super.onDestroy()
     }
+
+    // ---------- الاختصارات ----------
+
+    private fun kindLabel(t: com.naffith.app.core.ShortcutType): Pair<String, Int> = when (t) {
+        com.naffith.app.core.ShortcutType.IMAGE -> "🖼️" to R.string.sc_kind_image
+        com.naffith.app.core.ShortcutType.FILE -> "📄" to R.string.sc_kind_file
+        com.naffith.app.core.ShortcutType.APP -> "📱" to R.string.sc_kind_app
+        com.naffith.app.core.ShortcutType.LINK -> "🔗" to R.string.sc_kind_link
+        com.naffith.app.core.ShortcutType.CALL -> "📞" to R.string.sc_kind_call
+        com.naffith.app.core.ShortcutType.PLACE -> "📍" to R.string.sc_kind_place
+        com.naffith.app.core.ShortcutType.TEXT -> "📝" to R.string.sc_kind_text
+        com.naffith.app.core.ShortcutType.COMMANDS -> "⚡" to R.string.sc_kind_commands
+    }
+
+    private fun renderShortcuts() {
+        val list = findViewById<LinearLayout>(R.id.shortcutList)
+        list.removeAllViews()
+        val all = shortcuts.all()
+        findViewById<TextView>(R.id.shortcutEmpty).visibility =
+            if (all.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+        for (sc in all) {
+            val (icon, kind) = kindLabel(sc.type)
+            val detail = sc.title.ifBlank { getString(kind) }
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(6), 0, dp(6))
+            }
+            row.addView(TextView(this).apply {
+                text = getString(R.string.sc_row, icon, sc.triggers.joinToString("، "), detail)
+                textSize = 16f
+                setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            row.addView(ImageButton(this).apply {
+                setImageResource(android.R.drawable.ic_menu_delete)
+                background = null
+                contentDescription = getString(R.string.alias_delete)
+                setOnClickListener {
+                    MaterialAlertDialogBuilder(this@SettingsActivity)
+                        .setMessage(getString(R.string.sc_delete_confirm, sc.triggers.first()))
+                        .setPositiveButton(R.string.alias_delete) { _, _ ->
+                            shortcuts.delete(sc.id)
+                            renderShortcuts()
+                        }
+                        .setNegativeButton(R.string.cancel, null)
+                        .show()
+                }
+            })
+            list.addView(row)
+        }
+    }
+
+    private fun chooseShortcutType() {
+        val types = listOf(
+            com.naffith.app.core.ShortcutType.IMAGE to R.string.sc_type_image,
+            com.naffith.app.core.ShortcutType.FILE to R.string.sc_type_file,
+            com.naffith.app.core.ShortcutType.APP to R.string.sc_type_app,
+            com.naffith.app.core.ShortcutType.LINK to R.string.sc_type_link,
+            com.naffith.app.core.ShortcutType.CALL to R.string.sc_type_call,
+            com.naffith.app.core.ShortcutType.PLACE to R.string.sc_type_place,
+            com.naffith.app.core.ShortcutType.TEXT to R.string.sc_type_text,
+            com.naffith.app.core.ShortcutType.COMMANDS to R.string.sc_type_commands,
+        )
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.sc_choose_type)
+            .setItems(types.map { getString(it.second) }.toTypedArray()) { _, which ->
+                val type = types[which].first
+                pendingShortcutType = type
+                when (type) {
+                    com.naffith.app.core.ShortcutType.IMAGE -> pickDocument.launch(arrayOf("image/*"))
+                    com.naffith.app.core.ShortcutType.FILE -> pickDocument.launch(arrayOf("*/*"))
+                    com.naffith.app.core.ShortcutType.APP -> pickApp()
+                    com.naffith.app.core.ShortcutType.CALL ->
+                        runCatching { pickShortcutContact.launch(Intent(Intent.ACTION_PICK, Phone.CONTENT_URI)) }
+                    com.naffith.app.core.ShortcutType.LINK -> askText(R.string.sc_link_hint, false) { askTriggers(type, it, it) }
+                    com.naffith.app.core.ShortcutType.PLACE -> askText(R.string.sc_place_hint, false) { input ->
+                        lifecycleScope.launch {
+                            val dest = SavedPlaces.resolveDestination(input) ?: input
+                            askTriggers(type, dest, "")
+                        }
+                    }
+                    com.naffith.app.core.ShortcutType.TEXT -> askText(R.string.sc_text_hint, true) { askTriggers(type, it, "") }
+                    com.naffith.app.core.ShortcutType.COMMANDS -> askText(R.string.sc_commands_hint, true) { askTriggers(type, it, "") }
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun pickApp() {
+        val apps = AppResolver(this).installedApps().sortedBy { it.label }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.sc_pick_app)
+            .setItems(apps.map { it.label }.toTypedArray()) { _, which ->
+                val app = apps[which]
+                askTriggers(com.naffith.app.core.ShortcutType.APP, app.packageName, app.label)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    /** خانة نص (سطر أو أكثر) وبعدها [next]. */
+    private fun askText(hintRes: Int, multiLine: Boolean, next: (String) -> Unit) {
+        val input = EditText(this).apply {
+            hint = getString(hintRes)
+            if (multiLine) {
+                minLines = 3
+                gravity = Gravity.TOP or Gravity.START
+            } else {
+                setSingleLine()
+            }
+        }
+        val container = LinearLayout(this).apply {
+            setPadding(dp(24), dp(8), dp(24), 0)
+            addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        MaterialAlertDialogBuilder(this)
+            .setView(container)
+            .setPositiveButton(R.string.sc_next) { _, _ ->
+                val text = input.text.toString().trim()
+                if (text.isNotEmpty()) next(text)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    /** آخر خطوة: الكلام اللي يشغّل الاختصار. */
+    private fun askTriggers(type: com.naffith.app.core.ShortcutType, value: String, title: String) {
+        val input = EditText(this).apply {
+            hint = getString(R.string.sc_triggers_hint)
+        }
+        val container = LinearLayout(this).apply {
+            setPadding(dp(24), dp(8), dp(24), 0)
+            addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.sc_triggers_title)
+            .setView(container)
+            .setPositiveButton(R.string.chat_save) { _, _ ->
+                val triggers = com.naffith.app.core.ShortcutMatcher.splitTriggers(input.text.toString())
+                if (triggers.isEmpty()) return@setPositiveButton
+                shortcuts.save(com.naffith.app.core.Shortcut(shortcuts.newId(), triggers, type, value, title))
+                Toast.makeText(this, getString(R.string.sc_saved, triggers.first()), Toast.LENGTH_SHORT).show()
+                renderShortcuts()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    /** اسم الملف/الصورة للعرض. */
+    private fun displayName(uri: Uri): String = runCatching {
+        contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+    }.getOrNull().orEmpty()
 
     // ---------- البيت والدوام ----------
 
