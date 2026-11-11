@@ -213,7 +213,7 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // التحديثات: فحص في الخلفية كل ٦ ساعات (إشعار)، وأول ما تفتح مرسال نشيك (مرة كل ساعة بالكثير).
+        // التحديثات: فحص في الخلفية كل ٦ ساعات (إشعار)، وكل ما تفتح مرسال نشيك على طول.
         Updater.scheduleBackgroundCheck(this)
         askNotificationsOnce()
         if (isPopup) {

@@ -24,7 +24,11 @@ object Updater {
     private const val PREFS = "settings"
     private const val KEY_LAST_CHECK = "update_last_check"
     private const val KEY_SKIPPED = "update_skipped"
-    private const val CHECK_EVERY_MS = 60 * 60 * 1000L
+    /** كل ما تفتح مرسال نشيك (بس مو أكثر من مرة كل دقيقة، عشان حد GitHub). */
+    private const val CHECK_EVERY_MS = 60 * 1000L
+    private const val KEY_SKIPPED_AT = "update_skipped_at"
+    /** «بعدين» تسكت التذكير ٣ ساعات بس، مو للأبد. */
+    private const val SKIP_FOR_MS = 3 * 60 * 60 * 1000L
     private const val KEY_NOTIFIED = "update_notified"
     private const val CHANNEL = "updates"
 
@@ -52,10 +56,14 @@ object Updater {
 
     /** «بعدين» على نسخة معينة: ما نذكّرك فيها تلقائياً مرة ثانية. */
     fun skip(context: Context, versionCode: Int) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_SKIPPED, versionCode).apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_SKIPPED, versionCode)
+            .putLong(KEY_SKIPPED_AT, System.currentTimeMillis()).apply()
 
-    fun isSkipped(context: Context, versionCode: Int) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_SKIPPED, 0) >= versionCode
+    fun isSkipped(context: Context, versionCode: Int): Boolean {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return p.getInt(KEY_SKIPPED, 0) >= versionCode &&
+            System.currentTimeMillis() - p.getLong(KEY_SKIPPED_AT, 0) < SKIP_FOR_MS
+    }
 
     suspend fun check(context: Context): CheckResult = withContext(Dispatchers.IO) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()

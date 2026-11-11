@@ -14,10 +14,10 @@ object UpdateDialogs {
 
     /** تشييك تلقائي هادي (كل كم ساعة)؛ ما يطلع شي إلا إذا فيه تحديث جديد. */
     fun autoCheck(activity: AppCompatActivity) {
-        if (!Updater.shouldAutoCheck(activity)) return
+        if (offering || !Updater.shouldAutoCheck(activity)) return
         activity.lifecycleScope.launch {
             val result = Updater.check(activity)
-            if (result is Updater.CheckResult.Available && !Updater.isSkipped(activity, result.release.versionCode)) {
+            if (result is Updater.CheckResult.Available && !Updater.isSkipped(activity, result.release.versionCode) && !offering) {
                 offer(activity, result.release, fromAuto = true)
             }
         }
@@ -41,6 +41,9 @@ object UpdateDialogs {
         }
     }
 
+    /** رسالة التحديث ظاهرة الحين (عشان ما تطلع مرتين). */
+    private var offering = false
+
     private fun offer(activity: AppCompatActivity, release: Updater.Release, fromAuto: Boolean) {
         if (activity.isFinishing) return
         val notes = release.notes.trim().take(600)
@@ -58,6 +61,8 @@ object UpdateDialogs {
         } else {
             builder.setNegativeButton(R.string.cancel, null)
         }
+        offering = true
+        builder.setOnDismissListener { offering = false }
         builder.show()
     }
 
