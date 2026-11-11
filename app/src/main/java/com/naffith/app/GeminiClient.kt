@@ -157,18 +157,31 @@ object GeminiClient {
      * طلب نصي خام (بدون تنظيف للنطق): [json] = الرد JSON، [search] = يبحث في Google قبل الرد.
      * نستخدمه لفهم الأوامر الغريبة، وللبحث عن رقم مكان.
      */
-    suspend fun ask(context: Context, prompt: String, json: Boolean = false, search: Boolean = false): Result<String> =
+    suspend fun ask(
+        context: Context, prompt: String, json: Boolean = false, search: Boolean = false, fast: Boolean = false,
+    ): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val key = apiKey(context)
                 if (key.isBlank()) throw ChatError(R.string.chat_no_key)
-                val config = JSONObject().put("maxOutputTokens", 2048).put("temperature", 0.1)
-                if (json) config.put("responseMimeType", "application/json")
-                val body = JSONObject()
-                    .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
-                    .put("generationConfig", config)
-                if (search) body.put("tools", JSONArray().put(JSONObject().put("google_search", JSONObject())))
-                generate(context, key, body.toString(), raw = true)
+                fun body(noThinking: Boolean): String {
+                    val config = JSONObject().put("maxOutputTokens", 2048).put("temperature", 0.1)
+                    if (json) config.put("responseMimeType", "application/json")
+                    // بدون «تفكير» عشان الرد يجي بسرعة (فهم الأوامر ما يحتاجه).
+                    if (noThinking) config.put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
+                    val b = JSONObject()
+                        .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
+                        .put("generationConfig", config)
+                    if (search) b.put("tools", JSONArray().put(JSONObject().put("google_search", JSONObject())))
+                    return b.toString()
+                }
+                if (!fast) return@runCatching generate(context, key, body(false), raw = true)
+                try {
+                    generate(context, key, body(true), raw = true)
+                } catch (e: ChatError) {
+                    // موديل ما يقبل إيقاف التفكير: نعيد بدونه.
+                    if (e.code == 400) generate(context, key, body(false), raw = true) else throw e
+                }
             }
         }
 

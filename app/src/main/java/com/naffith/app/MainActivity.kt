@@ -673,9 +673,9 @@ open class MainActivity : AppCompatActivity() {
             CommandParser.parseBest(alternatives)
         }
         transcriptText.text = getString(R.string.heard_format, heard)
-        // ما فهمنا (أو «اتصل عليه» يرجع لشي قبل): Gemini يفهمها ويحوّلها لأوامرنا.
-        if (pending == null && needsSmart(command) && GeminiClient.apiKey(this).isNotBlank()) {
-            smartHandle(heard, command)
+        // العقل: Gemini يفهم الكلام الحر. القواعد تبقى للأوامر الفورية وللاحتياط بدون نت/مفتاح.
+        if (pending == null && !isInstant(command) && GeminiClient.apiKey(this).isNotBlank()) {
+            smartHandle(alternatives.filter { it.isNotBlank() }, heard, command)
             return
         }
         // أمر جديد (مو سؤال): نشيل جواب السوالف القديم.
@@ -684,50 +684,33 @@ open class MainActivity : AppCompatActivity() {
         execute(command)
     }
 
-    private val pronouns = setOf("عليه", "عليها", "عليهم", "له", "لها", "هو", "هي", "اياه", "ياه", "فيه", "هناك", "معه", "معها", "هذا", "هذي", "هاذا")
-
-    /** الاسم ضمير بس («عليه») أو ناقص، ومعنا سياق من قبل. */
-    private fun vagueNames(names: List<String>) =
-        names.isEmpty() || names.all { n -> ArabicText.normalize(n).split(" ").all { it in pronouns } }
-
-    private fun needsSmart(command: Command): Boolean = when (command) {
-        is Command.Unknown -> command.heard.isNotBlank()
-        is Command.Call -> SmartIntent.hasContext() && vagueNames(command.contactNames) &&
-            (lastPlaceQuery == null || System.currentTimeMillis() - lastPlaceAt > 10 * 60_000)
-        is Command.WhatsApp -> SmartIntent.hasContext() && vagueNames(command.contactNames) && command.nameAndMessage.isBlank()
-        is Command.CallLater -> SmartIntent.hasContext() && vagueNames(command.contactNames)
-        is Command.ShareLocation -> SmartIntent.hasContext() && !command.copyOnly && !command.toLastCaller && vagueNames(command.contactNames)
+    /** أوامر التحكم البسيطة («ارفع الصوت»، «شغل الكشاف») تتنفذ فوراً بدون ما نستنى Gemini. */
+    private fun isInstant(command: Command): Boolean = when (command) {
+        is Command.Device -> command.label.isBlank()
+        is Command.Sequence -> command.steps.all { it is Command.Device && it.label.isBlank() }
         else -> false
     }
 
-    /** نسأل Gemini وش يقصد، وننفّذ أوامرنا اللي طلعت. لو ما ضبط: نرجع للي كنا بنسويه. */
-    private fun smartHandle(heard: String, original: Command) {
+    /** Gemini يفهم وش يقصد وننفّذ. لو ما رد (نت/مهلة): نرجع لفهم القواعد. */
+    private fun smartHandle(alternatives: List<String>, heard: String, original: Command) {
         setStatus(getString(R.string.smart_thinking))
         orb?.state = VoiceOrbView.State.THINKING
         lifecycleScope.launch {
-            val plan = SmartIntent.plan(this@MainActivity, heard)
+            val now = java.util.Calendar.getInstance().let { it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE) }
+            val got = kotlinx.coroutines.withTimeoutOrNull(9_000) { SmartIntent.understand(this@MainActivity, alternatives, now) }
             orb?.state = VoiceOrbView.State.IDLE
-            val fallback = {
-                if (original !is Command.Unknown) remember(heard)
-                execute(original)
-            }
+            if (isFinishing) return@launch
             when {
-                plan == null -> fallback()
-                plan.callPlace.isNotBlank() -> {
-                    remember(heard)
-                    callPlace(plan.callPlace)
+                got == null -> {
+                    if (original !is Command.Unknown) { showAnswer(null); remember(heard) }
+                    execute(original)
                 }
-                plan.isQuestion || plan.commands.isEmpty() -> fallback()
+                got.isQuestion -> answerQuestion(got.text)
                 else -> {
-                    val cmds = plan.commands.map { CommandParser.parse(it) }.filter { it !is Command.Unknown }
-                    if (cmds.isEmpty()) {
-                        fallback()
-                    } else {
-                        showAnswer(null)
-                        remember(heard)
-                        transcriptText.text = getString(R.string.heard_format, heard) + "\n→ " + plan.commands.joinToString(" · ")
-                        execute(if (cmds.size == 1) cmds.first() else Command.Sequence(cmds))
-                    }
+                    showAnswer(null)
+                    remember(heard)
+                    transcriptText.text = getString(R.string.heard_format, got.text) + "\n→ " + got.summary
+                    execute(if (got.commands.size == 1) got.commands.first() else Command.Sequence(got.commands))
                 }
             }
         }
