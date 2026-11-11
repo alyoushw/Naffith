@@ -100,11 +100,14 @@ object CallReminder {
             Intent(context, CallReminderReceiver::class.java).setAction(ACTION_CANCEL).putExtra(EXTRA_ID, id),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val timeText = context.getString(R.string.countdown_at, time)
+        // «إشعار مباشر» مفعّل (أندرويد ١٦): النظام يرسمه بنفسه في Now Bar والشريط.
+        // غير كذا: تصميمنا، العد كبير وواضح.
+        val live = Build.VERSION.SDK_INT >= 36 && nm.canPostPromotedNotifications()
         val b = NotificationCompat.Builder(context, CHANNEL_COUNTDOWN)
             .setSmallIcon(R.drawable.ic_mic)
             .setContentTitle(title)
-            .setContentText(context.getString(R.string.countdown_at, time))
-            .setSubText(context.getString(R.string.countdown_sub))
+            .setContentText(timeText)
             .setWhen(at)
             .setShowWhen(true)
             .setUsesChronometer(true)
@@ -129,12 +132,26 @@ object CallReminder {
         } else {
             b.addAction(0, context.getString(R.string.countdown_hide), cancel)
         }
+        if (!live) {
+            val base = android.os.SystemClock.elapsedRealtime() + (at - System.currentTimeMillis())
+            fun views(layout: Int) = android.widget.RemoteViews(context.packageName, layout).apply {
+                setTextViewText(R.id.cd_title, title)
+                setChronometer(R.id.cd_timer, base, null, true)
+                setChronometerCountDown(R.id.cd_timer, true)
+                if (layout == R.layout.notif_countdown_big) setTextViewText(R.id.cd_time, timeText)
+            }
+            b.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+                .setCustomContentView(views(R.layout.notif_countdown_small))
+                .setCustomBigContentView(views(R.layout.notif_countdown_big))
+                .setShowWhen(false)
+        }
         var n = b.build()
-        if (Build.VERSION.SDK_INT >= 36) {
+        if (live) {
             // أندرويد ١٦ / One UI 8: «إشعار مباشر» (فوق في الشريط وفي Now Bar).
             n = runCatching {
                 android.app.Notification.Builder.recoverBuilder(context, n).setRequestPromotedOngoing(true).build()
             }.getOrDefault(n)
+        } else if (Build.VERSION.SDK_INT >= 36) {
             askForLiveNotifications(context, nm)
         }
         runCatching { nm.notify(id, n) }
