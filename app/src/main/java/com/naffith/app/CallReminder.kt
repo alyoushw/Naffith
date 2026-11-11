@@ -103,7 +103,7 @@ object CallReminder {
         val timeText = context.getString(R.string.countdown_at, time)
         // «إشعار مباشر» مفعّل (أندرويد ١٦): النظام يرسمه بنفسه في Now Bar والشريط.
         // غير كذا: تصميمنا، العد كبير وواضح.
-        val live = Build.VERSION.SDK_INT >= 36 && nm.canPostPromotedNotifications()
+        val live = canPostLive(nm)
         val b = NotificationCompat.Builder(context, CHANNEL_COUNTDOWN)
             .setSmallIcon(R.drawable.ic_mic)
             .setContentTitle(title)
@@ -145,21 +145,14 @@ object CallReminder {
                 .setCustomBigContentView(views(R.layout.notif_countdown_big))
                 .setShowWhen(false)
         }
-        var n = b.build()
-        if (live) {
-            // أندرويد ١٦ / One UI 8: «إشعار مباشر» (فوق في الشريط وفي Now Bar).
-            n = runCatching {
-                android.app.Notification.Builder.recoverBuilder(context, n).setRequestPromotedOngoing(true).build()
-            }.getOrDefault(n)
-        } else if (Build.VERSION.SDK_INT >= 36) {
-            askForLiveNotifications(context, nm)
-        }
-        runCatching { nm.notify(id, n) }
+        // «إشعار مباشر» (فوق في الشريط وفي Now Bar): الطلب نفسه في [EXTRA_PROMOTED] فوق.
+        if (!live && Build.VERSION.SDK_INT >= 36) askForLiveNotifications(context, nm)
+        runCatching { nm.notify(id, b.build()) }
     }
 
     /** إذا «الإشعارات المباشرة» مقفلة لمرسال: إشعار يوديك لمكان تفعيلها (مرة كل يومين بالكثير). */
     private fun askForLiveNotifications(context: Context, nm: NotificationManager) {
-        if (Build.VERSION.SDK_INT < 36 || nm.canPostPromotedNotifications()) return
+        if (Build.VERSION.SDK_INT < 36 || canPostLive(nm)) return
         val prefs = context.getSharedPreferences("live_notifications", Context.MODE_PRIVATE)
         if (System.currentTimeMillis() - prefs.getLong("asked_at", 0) < 2 * 24 * 60 * 60 * 1000L) return
         prefs.edit().putLong("asked_at", System.currentTimeMillis()).apply()
@@ -179,17 +172,21 @@ object CallReminder {
         runCatching { nm.notify(9001, ask) }
     }
 
-    /** صفحة «الإشعارات المباشرة» لمرسال (أو إعدادات إشعاراته). */
-    fun liveSettingsIntent(context: Context): Intent =
-        if (Build.VERSION.SDK_INT >= 36) {
-            Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS)
-                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        } else {
-            Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+    /** NotificationManager.canPostPromotedNotifications() (أندرويد ١٦ وفوق)، بدون ما نحتاج SDK أحدث. */
+    private fun canPostLive(nm: NotificationManager): Boolean = Build.VERSION.SDK_INT >= 36 && runCatching {
+        nm.javaClass.getMethod("canPostPromotedNotifications").invoke(nm) as Boolean
+    }.getOrDefault(false)
+
+    /** صفحة «الإشعارات المباشرة» لمرسال (أو إعدادات إشعاراته إذا الجوال ما يدعمها). */
+    fun liveSettingsIntent(context: Context): Intent {
+        val promo = Intent("android.settings.APP_NOTIFICATION_PROMOTION_SETTINGS")
+            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (Build.VERSION.SDK_INT >= 36 && promo.resolveActivity(context.packageManager) != null) return promo
+        return Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
 
     fun show(context: Context, name: String, number: String, id: Int) {
         val nm = context.getSystemService(NotificationManager::class.java)
