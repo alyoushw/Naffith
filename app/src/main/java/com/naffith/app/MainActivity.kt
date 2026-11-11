@@ -772,6 +772,15 @@ open class MainActivity : AppCompatActivity() {
 
             is Command.Sequence -> runSequence(command.steps)
 
+            is Command.CallLater ->
+                if (command.contactNames.isEmpty()) {
+                    askFollowUp(getString(R.string.ask_call_name)) { command.copy(contactNames = CommandParser.parseName(it)) }
+                } else {
+                    resolveContact(command.contactNames, retry = { command.copy(contactNames = CommandParser.parseName(it)) }) { contact ->
+                        scheduleCallLater(contact, command)
+                    }
+                }
+
             is Command.SendScreenshot ->
                 resolveContact(command.contactNames, retry = { Command.SendScreenshot(CommandParser.parseName(it)) }) { contact ->
                     sendScreenshotTo(contact)
@@ -780,6 +789,23 @@ open class MainActivity : AppCompatActivity() {
             // مو أمر؟ سؤال أو سالفة: يجاوبه Gemini (داخل مرسال أو تطبيقه) أو Google، حسب الإعدادات.
             is Command.Unknown -> answerQuestion(command.heard)
         }
+    }
+
+    /** نجهّز إشعار «اتصل / إلغاء» في الوقت اللي قاله. */
+    private fun scheduleCallLater(contact: Contact, command: Command.CallLater) {
+        val doIt = {
+            CallReminder.schedule(applicationContext, contact.name, contact.number, command.delaySeconds, command.atMinutes)
+            val msg = getString(R.string.call_later_set, contact.name, CallReminder.describe(command.delaySeconds, command.atMinutes))
+            setStatus(msg)
+            orb?.state = VoiceOrbView.State.IDLE
+            if (isPopup) {
+                if (voiceMode && VoicePrefs.speakReplies(this)) say(msg) { if (!isFinishing) finish() }
+                else micButton.postDelayed({ if (!isFinishing) finish() }, 2200)
+            } else if (voiceMode && VoicePrefs.speakReplies(this)) say(msg)
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            withPermission(Manifest.permission.POST_NOTIFICATIONS, onDenied = { setStatus(getString(R.string.call_later_no_notif)) }) { doIt() }
+        } else doIt()
     }
 
     // ---------- أكثر من أمر ----------

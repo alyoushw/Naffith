@@ -48,6 +48,12 @@ sealed interface Command {
     /** «صور الشاشة وارسلها لريحانة»: لقطة شاشة وترسل بالواتساب. */
     data class SendScreenshot(val contactNames: List<String>) : Command
 
+    /**
+     * «بعد دقيقة جهز لي اتصال على روحي» / «ذكرني الساعة ٥ اتصل على أبوي»: في الوقت يطلع إشعار
+     * فيه «اتصل» و«إلغاء». [delaySeconds] بعد كم ثانية، أو [atMinutes] الساعة كم (دقائق من منتصف الليل).
+     */
+    data class CallLater(val contactNames: List<String>, val delaySeconds: Int? = null, val atMinutes: Int? = null) : Command
+
     /** أمر غير مفهوم، مع النص الذي سُمع. */
     data class Unknown(val heard: String) : Command
 }

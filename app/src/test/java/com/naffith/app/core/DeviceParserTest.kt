@@ -24,7 +24,9 @@ class DeviceParserTest {
     @Test fun relativeAlarmAndReminder() {
         assertEquals(d(DeviceAction.ALARM, 11 * 60), p("صحني بعد ساعة"))
         assertEquals(d(DeviceAction.ALARM, 10 * 60 + 30, ""), p("ذكرني بعد نص ساعة"))
-        assertEquals(d(DeviceAction.ALARM, 17 * 60, "اتصل على ابوي"), p("ذكرني الساعة ٥ العصر اتصل على ابوي"))
+        assertEquals(d(DeviceAction.ALARM, 17 * 60, "اشتري خبز"), p("ذكرني الساعة ٥ العصر اشتري خبز"))
+        // «ذكرني … اتصل على فلان» صار اتصال مجهّز (إشعار فيه «اتصل» و«إلغاء»).
+        assertEquals(Command.CallLater(listOf("ابوي"), atMinutes = 17 * 60), p("ذكرني الساعة ٥ العصر اتصل على ابوي"))
     }
 
     @Test fun timer() {

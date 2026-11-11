@@ -104,14 +104,19 @@ object CommandParser {
     }
 
     /** مثل [parse] بس يفهم لين ٣ أوامر في جملة وحدة («…وبعدين…»، «…وارسلها لفلان»). */
-    fun parseMulti(text: String, nowMinutes: Int = currentMinutes()): Command =
-        MultiCommand.parse(text) { parse(it, nowMinutes) } ?: parse(text, nowMinutes)
+    fun parseMulti(text: String, nowMinutes: Int = currentMinutes()): Command {
+        // «ذكرني بعد دقيقة واتصل على روحي» أمر واحد، مو أمرين.
+        parse(text, nowMinutes).let { if (it is Command.CallLater) return it }
+        return MultiCommand.parse(text) { parse(it, nowMinutes) } ?: parse(text, nowMinutes)
+    }
 
     fun parse(text: String, nowMinutes: Int = currentMinutes()): Command {
         val tokens = stripFillers(ArabicText.tokenize(text))
         if (tokens.isEmpty()) return Command.Unknown(text)
 
         fun has(words: Set<String>) = tokens.any { isWord(it.normalized, words) }
+
+        if (has(callWords)) scheduledCall(tokens, nowMinutes)?.let { return it }
 
         return when {
             has(whatsappWords) -> whatsApp(tokens)
@@ -338,6 +343,31 @@ object CommandParser {
             else -> first
         }
         return rest.joinToString(" ") { it.original }
+    }
+
+    /** كلمات الجدولة والوقت اللي نشيلها عشان يبقى اسم الشخص بس. */
+    private val laterWords = setOf(
+        "ذكرني", "ذكريني", "نبهني", "نبهيني", "جهز", "جهزلي", "جهزي", "تجهز", "تجهزلي", "تجهزي", "ابغاك", "ابيك", "ابغيك",
+        "بعد", "الساعه", "ساعه", "ساعات", "ساعتين", "دقيقه", "دقايق", "دقائق", "دقيقتين", "ثانيه", "ثواني",
+        "نص", "ربع", "ونص", "وربع", "وثلث", "الا", "ثلث", "الصبح", "الصباح", "صباحا", "العصر", "الظهر", "المغرب",
+        "المسا", "المساء", "مساء", "الليل", "بالليل", "الفجر", "العشا", "اليوم"
+    )
+
+    /** «بعد دقيقة جهز لي اتصال لروحي» ← اتصال مجهّز بعد ٦٠ ثانية. */
+    private fun scheduledCall(tokens: List<Token>, nowMinutes: Int): Command? {
+        val words = tokens.map { it.normalized }
+        val dur = TimeParser.duration(words)
+        val delay: Int?
+        val at: Int?
+        when {
+            dur != null && "بعد" in words -> { delay = dur; at = null }
+            "الساعه" in words -> { at = TimeParser.clock(words, nowMinutes) ?: return null; delay = null }
+            else -> return null
+        }
+        val rest = tokens.filterNot { t ->
+            t.normalized in laterWords || t.normalized.toIntOrNull() != null || TimeParser.wordNumber(t.normalized) != null
+        }
+        return Command.CallLater(contactNames(rest, emptySet()), delay, at)
     }
 
     private fun contactNames(tokens: List<Token>, appWords: Set<String>): List<String> {
