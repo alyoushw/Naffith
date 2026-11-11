@@ -270,6 +270,52 @@
                 android:textSize="15sp" />
 
             <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/patience_title"
+                android:textColor="@color/text_primary"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/patience_hint"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp" />
+
+            <RadioGroup
+                android:id="@+id/patienceGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <RadioButton
+                    android:id="@+id/patienceShort"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/patience_short"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/patienceMedium"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/patience_medium"
+                    android:textColor="@color/text_primary" />
+
+                <RadioButton
+                    android:id="@+id/patienceLong"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/patience_long"
+                    android:textColor="@color/text_primary" />
+            </RadioGroup>
+
+            <TextView
                 android:id="@+id/voiceCurrent"
                 style="@style/SettingsHint" />
 

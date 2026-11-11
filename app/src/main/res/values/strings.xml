@@ -370,4 +370,17 @@
     <string name="last_ask_name">آخر رقم %1$s (%2$s). باسم مين أسجله؟</string>
     <string name="last_saved">حفظت %1$s باسم «%2$s» ✓</string>
     <string name="last_already_saved">آخر رقم محفوظ من قبل باسم «%1$s».</string>
+    <string name="patience_title">ينتظرك قبل ما ينفّذ</string>
+    <string name="patience_hint">لو يقطع عليك وأنت تفكر، خله «طويل»: ينتظر أكثر بعد ما تسكت، ولو وقفت على «و…» أو «على…» يستناك تكمّل.</string>
+    <string name="patience_short">قصير</string>
+    <string name="patience_medium">متوسط</string>
+    <string name="patience_long">طويل</string>
+    <string name="continue_speaking">كمّل… أسمعك</string>
+    <string name="smart_thinking">لحظة، أفهم طلبك…</string>
+    <string name="smart_finding_phone">أدوّر على رقم «%1$s»…</string>
+    <string name="smart_no_phone">ما لقيت رقم مؤكد لـ«%1$s». فتحت لك المكان في الخرائط، اضغط «اتصال» من صفحته.</string>
+    <string name="smart_call_place_title">أتصل على «%1$s»؟</string>
+    <string name="smart_call_place_msg">الرقم اللي لقيته: %1$s\nتأكد منه قبل الاتصال.</string>
+    <string name="smart_call">📞 اتصل</string>
+    <string name="smart_open_maps">افتحه في الخرائط</string>
 </resources>

@@ -28,6 +28,13 @@ object VoicePrefs {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_OPEN_AS_ASSISTANT, value).apply()
 
     /** يرد بالصوت («هلا بيك، أمرني» والأسئلة)؟ إذا لا، المساعد يسمع على طول بدون كلام. */
+    /** كم ينتظر بعد ما تسكت: 0 قصير (مثل قبل)، 1 متوسط، 2 طويل (وينتظرك تكمّل كلامك). */
+    fun patience(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("listen_patience", 1)
+
+    fun setPatience(context: Context, value: Int) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt("listen_patience", value).apply()
+
     fun speakReplies(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SPEAK, true)
 

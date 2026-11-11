@@ -130,7 +130,7 @@ object GeminiClient {
      * يرسل الطلب لـ Gemini. إذا الموديل مضغوط (503) أو خلص حده (429) أو مو موجود (404)، نجرّب
      * موديل ثاني تلقائياً، وكل موديل نعطيه محاولتين.
      */
-    private fun generate(context: Context, key: String, body: String): String {
+    private fun generate(context: Context, key: String, body: String, raw: Boolean = false): String {
         val models = (listOf(model(context)) + FALLBACK_MODELS).distinct()
         var lastError: ChatError? = null
         for (m in models) {
@@ -140,7 +140,7 @@ object GeminiClient {
             )
             for (attempt in 0 until 2) {
                 try {
-                    return send(url, key, body)
+                    return send(url, key, body, raw)
                 } catch (e: ChatError) {
                     lastError = e
                     if (e.code !in RETRYABLE) throw e
@@ -152,6 +152,25 @@ object GeminiClient {
         throw lastError?.let { if (it.code in 500..599) ChatError(R.string.chat_busy, it.detail, it.code) else it }
             ?: ChatError(R.string.chat_failed)
     }
+
+    /**
+     * طلب نصي خام (بدون تنظيف للنطق): [json] = الرد JSON، [search] = يبحث في Google قبل الرد.
+     * نستخدمه لفهم الأوامر الغريبة، وللبحث عن رقم مكان.
+     */
+    suspend fun ask(context: Context, prompt: String, json: Boolean = false, search: Boolean = false): Result<String> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val key = apiKey(context)
+                if (key.isBlank()) throw ChatError(R.string.chat_no_key)
+                val config = JSONObject().put("maxOutputTokens", 2048).put("temperature", 0.1)
+                if (json) config.put("responseMimeType", "application/json")
+                val body = JSONObject()
+                    .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
+                    .put("generationConfig", config)
+                if (search) body.put("tools", JSONArray().put(JSONObject().put("google_search", JSONObject())))
+                generate(context, key, body.toString(), raw = true)
+            }
+        }
 
     /**
      * يحوّل تسجيل صوتي (WAV) لنص عن طريق Gemini. نستخدمه لما محرك التعرف في الجوال ما يسمع
@@ -187,7 +206,7 @@ object GeminiClient {
         }
     }
 
-    private fun send(url: URL, key: String, body: String): String {
+    private fun send(url: URL, key: String, body: String, raw: Boolean = false): String {
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
@@ -225,7 +244,7 @@ object GeminiClient {
                     append(part.optString("text"))
                 }
             }
-            val clean = ChatText.forSpeech(text)
+            val clean = if (raw) text.trim() else ChatText.forSpeech(text)
             if (clean.isBlank()) {
                 val reason = candidate?.optString("finishReason").orEmpty()
                     .ifBlank { json.optJSONObject("promptFeedback")?.optString("blockReason").orEmpty() }

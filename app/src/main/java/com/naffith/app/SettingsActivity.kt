@@ -120,6 +120,22 @@ class SettingsActivity : AppCompatActivity() {
             setOnCheckedChangeListener { _, checked -> VoicePrefs.setOpenAsAssistant(this@SettingsActivity, checked) }
         }
 
+        // كم ينتظر بعد ما تسكت قبل ما ينفّذ.
+        findViewById<android.widget.RadioGroup>(R.id.patienceGroup).apply {
+            check(
+                when (VoicePrefs.patience(this@SettingsActivity)) {
+                    0 -> R.id.patienceShort
+                    2 -> R.id.patienceLong
+                    else -> R.id.patienceMedium
+                }
+            )
+            setOnCheckedChangeListener { _, id ->
+                VoicePrefs.setPatience(
+                    this@SettingsActivity,
+                    when (id) { R.id.patienceShort -> 0; R.id.patienceLong -> 2; else -> 1 }
+                )
+            }
+        }
         findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.speakSwitch).apply {
             isChecked = VoicePrefs.speakReplies(this@SettingsActivity)
             setOnCheckedChangeListener { _, checked -> VoicePrefs.setSpeakReplies(this@SettingsActivity, checked) }

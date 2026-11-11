@@ -418,9 +418,21 @@ open class MainActivity : AppCompatActivity() {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+            // نعطيه وقت يفكر: ما ينهي الاستماع على أول سكتة.
+            when (VoicePrefs.patience(this@MainActivity)) {
+                1 -> {
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+                }
+                2 -> {
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3500L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 2500L)
+                }
+            }
         }
         setListening(true)
-        if (followUp == null) transcriptText.text = ""
+        if (followUp == null && continuation == null) transcriptText.text = ""
         sr.startListening(intent)
     }
 
@@ -445,10 +457,25 @@ open class MainActivity : AppCompatActivity() {
 
         override fun onResults(results: Bundle?) {
             setListening(false)
-            val alternatives = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+            val heardNow = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+            // كان يكمّل جملة قبل: نلصق الكلام الجديد على القديم.
+            val prefix = continuation
+            continuation = null
+            val alternatives = if (prefix != null) {
+                val more = heardNow.filter { it.isNotBlank() }
+                if (more.isEmpty()) prefix else prefix.map { p -> "$p ${more.first()}" } + more.drop(1).map { "${prefix.first()} $it" }
+            } else heardNow
             if (alternatives.none { it.isNotBlank() }) {
                 setStatus(getString(R.string.err_no_match))
                 closePopupSoon()
+                return
+            }
+            // وقف في نص الجملة («… و» / «… على»)؟ نستناه يكمّل بدل ما ننفّذ نص أمر.
+            if (prefix == null && followUp == null && looksUnfinished(alternatives.first())) {
+                continuation = alternatives
+                transcriptText.text = getString(R.string.heard_format, alternatives.first())
+                setStatus(getString(R.string.continue_speaking))
+                startListening()
                 return
             }
             handleSpeech(alternatives)
@@ -456,6 +483,15 @@ open class MainActivity : AppCompatActivity() {
 
         override fun onError(error: Int) {
             setListening(false)
+            // كنا نستناه يكمّل وسكت: ننفّذ اللي قاله.
+            continuation?.let { saved ->
+                if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                    continuation = null
+                    handleSpeech(saved)
+                    return
+                }
+                continuation = null
+            }
             // المحرك ما يدعم العربي؟ نجرّب المحرك اللي بعده بصمت.
             if ((error == ERROR_LANGUAGE_NOT_SUPPORTED || error == ERROR_LANGUAGE_UNAVAILABLE) &&
                 recognizerIndex + 1 < VoicePrefs.recognizerCandidates(this@MainActivity).size
@@ -599,6 +635,16 @@ open class MainActivity : AppCompatActivity() {
         else -> getString(R.string.err_generic, error)
     }
 
+    /** جملة وقفت في نصها: كمّلها. */
+    private var continuation: List<String>? = null
+
+    private fun looksUnfinished(text: String): Boolean {
+        val words = ArabicText.normalize(text).split(" ").filter { it.isNotEmpty() }
+        val last = words.lastOrNull() ?: return false
+        val hanging = setOf("و", "على", "الى", "ل", "عن", "في", "من", "اللي", "الي", "ثم", "وبعدين", "بعدين", "مع", "عند", "حق", "يا", "او", "بس", "لين")
+        return last in hanging || (VoicePrefs.patience(this) == 2 && words.size <= 2 && CommandParser.parse(text) is Command.Unknown)
+    }
+
     // ---------- تنفيذ الأوامر ----------
 
     private fun handleSpeech(alternatives: List<String>) {
@@ -627,10 +673,105 @@ open class MainActivity : AppCompatActivity() {
             CommandParser.parseBest(alternatives)
         }
         transcriptText.text = getString(R.string.heard_format, heard)
+        // ما فهمنا (أو «اتصل عليه» يرجع لشي قبل): Gemini يفهمها ويحوّلها لأوامرنا.
+        if (pending == null && needsSmart(command) && GeminiClient.apiKey(this).isNotBlank()) {
+            smartHandle(heard, command)
+            return
+        }
         // أمر جديد (مو سؤال): نشيل جواب السوالف القديم.
         if (command !is Command.Unknown) showAnswer(null)
         if (pending == null && command !is Command.Unknown) remember(heard)
         execute(command)
+    }
+
+    private val pronouns = setOf("عليه", "عليها", "عليهم", "له", "لها", "هو", "هي", "اياه", "ياه", "فيه", "هناك", "معه", "معها", "هذا", "هذي", "هاذا")
+
+    /** الاسم ضمير بس («عليه») أو ناقص، ومعنا سياق من قبل. */
+    private fun vagueNames(names: List<String>) =
+        names.isEmpty() || names.all { n -> ArabicText.normalize(n).split(" ").all { it in pronouns } }
+
+    private fun needsSmart(command: Command): Boolean = when (command) {
+        is Command.Unknown -> command.heard.isNotBlank()
+        is Command.Call -> SmartIntent.hasContext() && vagueNames(command.contactNames)
+        is Command.WhatsApp -> SmartIntent.hasContext() && vagueNames(command.contactNames) && command.nameAndMessage.isBlank()
+        is Command.CallLater -> SmartIntent.hasContext() && vagueNames(command.contactNames)
+        is Command.ShareLocation -> SmartIntent.hasContext() && !command.copyOnly && !command.toLastCaller && vagueNames(command.contactNames)
+        else -> false
+    }
+
+    /** نسأل Gemini وش يقصد، وننفّذ أوامرنا اللي طلعت. لو ما ضبط: نرجع للي كنا بنسويه. */
+    private fun smartHandle(heard: String, original: Command) {
+        setStatus(getString(R.string.smart_thinking))
+        orb?.state = VoiceOrbView.State.THINKING
+        lifecycleScope.launch {
+            val plan = SmartIntent.plan(this@MainActivity, heard)
+            orb?.state = VoiceOrbView.State.IDLE
+            val fallback = {
+                if (original !is Command.Unknown) remember(heard)
+                execute(original)
+            }
+            when {
+                plan == null -> fallback()
+                plan.callPlace.isNotBlank() -> {
+                    remember(heard)
+                    callPlace(plan.callPlace)
+                }
+                plan.isQuestion || plan.commands.isEmpty() -> fallback()
+                else -> {
+                    val cmds = plan.commands.map { CommandParser.parse(it) }.filter { it !is Command.Unknown }
+                    if (cmds.isEmpty()) {
+                        fallback()
+                    } else {
+                        showAnswer(null)
+                        remember(heard)
+                        transcriptText.text = getString(R.string.heard_format, heard) + "\n→ " + plan.commands.joinToString(" · ")
+                        execute(if (cmds.size == 1) cmds.first() else Command.Sequence(cmds))
+                    }
+                }
+            }
+        }
+    }
+
+    /** «اتصل على العبير للاتصالات»: نلقى رقم المكان، ونتأكد منك قبل الاتصال. */
+    private fun callPlace(place: String) {
+        setStatus(getString(R.string.smart_finding_phone, place))
+        orb?.state = VoiceOrbView.State.THINKING
+        lifecycleScope.launch {
+            val phone = SmartIntent.findPhone(this@MainActivity, place)
+            orb?.state = VoiceOrbView.State.IDLE
+            if (isFinishing) return@launch
+            if (phone == null) {
+                execute(Command.OpenMaps(place))
+                setStatus(getString(R.string.smart_no_phone, place))
+                return@launch
+            }
+            val title = getString(R.string.smart_call_place_title, phone.name)
+            setStatus(title)
+            SmartIntent.remember("لقيت رقم ${phone.name}: ${phone.number}")
+            MaterialAlertDialogBuilder(this@MainActivity)
+                .setTitle(title)
+                .setMessage(getString(R.string.smart_call_place_msg, phone.number))
+                .setPositiveButton(R.string.smart_call) { _, _ -> placeCall(Contact("", phone.name, phone.number)) }
+                .setNeutralButton(R.string.smart_open_maps) { _, _ -> execute(Command.OpenMaps(place)) }
+                .setNegativeButton(R.string.cancel) { _, _ -> setStatus(getString(R.string.status_ready)) }
+                .show()
+            if (voiceMode && VoicePrefs.speakReplies(this@MainActivity)) say(title)
+        }
+    }
+
+    /** وصف قصير للأمر عشان السياق («فتحت الخرائط على العبير»). */
+    private fun describe(command: Command): String = when (command) {
+        is Command.OpenMaps -> (if (command.navigate) "ملاحة إلى: " else "فتح الخرائط على: ") + command.query
+        is Command.Call -> "اتصال على: " + command.contactNames.firstOrNull().orEmpty()
+        is Command.WhatsApp -> "واتساب: " + command.contactNames.firstOrNull().orEmpty() + " " + command.message
+        is Command.SearchYouTube -> "يوتيوب: " + command.query
+        is Command.OpenApp -> "فتح تطبيق: " + command.appName + " " + command.query
+        is Command.CallLater -> "تذكير اتصال على: " + command.contactNames.firstOrNull().orEmpty()
+        is Command.ShareLocation -> "إرسال الموقع"
+        is Command.Device -> "تحكم في الجوال: " + command.action.name + " " + command.label
+        is Command.Remind -> "تذكير: " + command.label
+        is Command.Unknown -> "سؤال: " + command.heard
+        else -> command.javaClass.simpleName
     }
 
     /** نتذكر آخر أمر نفّذناه عشان لو قال بعده «لا قصدي …» نعرف وش نصحّح. */
@@ -691,6 +832,7 @@ open class MainActivity : AppCompatActivity() {
     }
 
     private fun execute(command: Command) {
+        if (command !is Command.Sequence) SmartIntent.remember(describe(command))
         when (command) {
             is Command.OpenMaps -> if (command.navigate && command.query.isNotBlank()) {
                 // «وجهني الى …»: الملاحة تبدأ على طول، و«المنزل» يروح للبيت المحفوظ.
