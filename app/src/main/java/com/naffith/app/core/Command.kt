@@ -60,6 +60,26 @@ sealed interface Command {
      */
     data class Remind(val label: String, val atMinutes: Int, val fullScreen: Boolean) : Command
 
+    /**
+     * «انسخ موقعي» ([copyOnly]) / «ارسل موقعي لروحي» / «ارسل موقعي لآخر رقم اتصل» ([toLastCaller]).
+     * قبل الإرسال تطلع خريطة تأكّد فيها الموقع (وتقدر تعدّله).
+     */
+    data class ShareLocation(
+        val contactNames: List<String>,
+        val toLastCaller: Boolean = false,
+        val copyOnly: Boolean = false,
+    ) : Command
+
+    /** أوامر على آخر رقم في سجل المكالمات: حفظه باسم، واتساب، اتصال، أو بس نقول مين. */
+    data class LastCaller(
+        val action: LastCallerAction,
+        val name: String = "",
+        val message: String = "",
+        val send: Boolean = false,
+    ) : Command
+
     /** أمر غير مفهوم، مع النص الذي سُمع. */
     data class Unknown(val heard: String) : Command
 }
+
+enum class LastCallerAction { SAVE, WHATSAPP, CALL, SHOW }

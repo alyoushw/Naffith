@@ -347,4 +347,27 @@
     <string name="rem_hour">ساعة</string>
     <string name="rem_snoozed">بذكّرك بعد %1$d دقيقة</string>
     <string name="countdown_left">باقي</string>
+    <string name="loc_title_send">أكّد موقعك</string>
+    <string name="loc_title_to">إرسال موقعك إلى %1$s</string>
+    <string name="loc_title_copy">نسخ موقعك</string>
+    <string name="loc_finding">أحدد موقعك بدقة…</string>
+    <string name="loc_accuracy">الدقة: ±%1$d متر · حرّك الخريطة لو تبي تعدّله</string>
+    <string name="loc_manual">حددته يدوي: الدبوس هو اللي ينرسل</string>
+    <string name="loc_off">الموقع مقفل في الجوال. شغّله من الإعدادات السريعة، أو حرّك الخريطة وحدد مكانك بنفسك.</string>
+    <string name="loc_hint">تأكد إن الدبوس على مكانك بالضبط قبل الإرسال.</string>
+    <string name="loc_recenter">◎ موقعي</string>
+    <string name="loc_send">إرسال الموقع</string>
+    <string name="loc_copy">نسخ الموقع</string>
+    <string name="loc_copied">نسخت موقعك 📍 الصقه وين ما تبي.</string>
+    <string name="loc_cancelled">ألغيت إرسال الموقع.</string>
+    <string name="loc_confirm_status">أكّد موقعك على الخريطة…</string>
+    <string name="loc_ask_who">لمين أرسل موقعك؟</string>
+    <string name="loc_message">📍 موقعي:\n%1$s</string>
+    <string name="perm_location_denied">أحتاج إذن الموقع عشان أرسل موقعك.</string>
+    <string name="perm_calllog_denied">أحتاج إذن سجل المكالمات عشان أعرف آخر رقم.</string>
+    <string name="last_none">ما لقيت مكالمات في السجل.</string>
+    <string name="last_show">آخر رقم: %1$s (%2$s)</string>
+    <string name="last_ask_name">آخر رقم %1$s (%2$s). باسم مين أسجله؟</string>
+    <string name="last_saved">حفظت %1$s باسم «%2$s» ✓</string>
+    <string name="last_already_saved">آخر رقم محفوظ من قبل باسم «%1$s».</string>
 </resources>

@@ -116,6 +116,8 @@ object CommandParser {
 
         fun has(words: Set<String>) = tokens.any { isWord(it.normalized, words) }
 
+        // الموقع وسجل المكالمات: «ارسل موقعي لروحي»، «احفظ آخر رقم باسم المندوب».
+        LocationParser.parse(text)?.let { return it }
         if (has(callWords)) scheduledCall(tokens, nowMinutes)?.let { return it }
 
         return when {

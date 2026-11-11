@@ -6,6 +6,11 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
+    <!-- «ارسل موقعي» و«آخر رقم في السجل» -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
     <!-- تثبيت التحديثات من داخل التطبيق (يوافق عليه المستخدم مرة). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- إشعار «تحديث جديد لمرسال». -->
@@ -174,6 +179,10 @@
         <receiver android:name=".CallReminderReceiver" android:exported="false" />
         <receiver android:name=".ReminderReceiver" android:exported="false" />
         <receiver android:name=".CountdownReceiver" android:exported="false" />
+        <activity
+            android:name=".LocationPickActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Naffith" />
         <activity
             android:name=".ReminderAlertActivity"
             android:exported="false"

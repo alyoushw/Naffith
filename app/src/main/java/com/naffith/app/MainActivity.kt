@@ -236,7 +236,8 @@ open class MainActivity : AppCompatActivity() {
         if (isPopup) {
             // النافذة الصغيرة تسكّر بعد ما فتحنا التطبيق المطلوب (أو لما يطلع منها المستخدم)،
             // إلا وقت فتح القفل (شاشة البصمة/الرمز تغطيها مؤقتاً).
-            if (!isChangingConfigurations && !awaitingUnlock && !sequenceRunning) finish()
+            // وإلا وقت خريطة تأكيد الموقع (نستنى النتيجة).
+            if (!isChangingConfigurations && !awaitingUnlock && !sequenceRunning && onLocationPicked == null) finish()
             return
         }
         // إذا «افتح كنافذة مساعد» مفعّل، نسكّر الشاشة الكاملة لما تطلع منها، عشان المرة الجاية
@@ -774,6 +775,10 @@ open class MainActivity : AppCompatActivity() {
 
             is Command.Remind -> scheduleReminder(command)
 
+            is Command.ShareLocation -> shareLocation(command)
+
+            is Command.LastCaller -> lastCaller(command)
+
             is Command.CallLater ->
                 if (command.contactNames.isEmpty()) {
                     askFollowUp(getString(R.string.ask_call_name)) { command.copy(contactNames = CommandParser.parseName(it)) }
@@ -791,6 +796,127 @@ open class MainActivity : AppCompatActivity() {
             // مو أمر؟ سؤال أو سالفة: يجاوبه Gemini (داخل مرسال أو تطبيقه) أو Google، حسب الإعدادات.
             is Command.Unknown -> answerQuestion(command.heard)
         }
+    }
+
+    // ---------- الموقع وسجل المكالمات ----------
+
+    private var onLocationPicked: ((Double, Double) -> Unit)? = null
+    private val locationPicker =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+            val cb = onLocationPicked
+            onLocationPicked = null
+            val data = r.data
+            if (r.resultCode == RESULT_OK && data != null) {
+                cb?.invoke(data.getDoubleExtra(LocationPickActivity.EXTRA_LAT, 0.0), data.getDoubleExtra(LocationPickActivity.EXTRA_LNG, 0.0))
+            } else {
+                setStatus(getString(R.string.loc_cancelled))
+                closePopupSoon()
+            }
+        }
+
+    /** إذن الموقع (الدقيق، أو التقريبي إذا هذا اللي سمح فيه). */
+    private fun withLocation(onGranted: () -> Unit) {
+        if (hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION) || hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
+            onGranted()
+            return
+        }
+        withPermission(Manifest.permission.ACCESS_FINE_LOCATION, onDenied = {
+            if (hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)) onGranted()
+            else handleDenied(Manifest.permission.ACCESS_FINE_LOCATION, R.string.perm_location_denied, R.string.perm_location_denied)
+        }, onGranted = onGranted)
+    }
+
+    /** نفتح الخريطة للتأكيد، وبعدها [then] بالإحداثيات. */
+    private fun pickLocation(title: String, button: String, then: (Double, Double) -> Unit) {
+        withLocation {
+            onLocationPicked = then
+            setStatus(getString(R.string.loc_confirm_status))
+            locationPicker.launch(
+                Intent(this, LocationPickActivity::class.java)
+                    .putExtra(LocationPickActivity.EXTRA_TITLE, title)
+                    .putExtra(LocationPickActivity.EXTRA_BUTTON, button)
+            )
+        }
+    }
+
+    private fun locationMessage(lat: Double, lng: Double) =
+        getString(R.string.loc_message, LocationPickActivity.link(lat, lng))
+
+    private fun shareLocation(command: Command.ShareLocation) {
+        when {
+            command.copyOnly -> pickLocation(getString(R.string.loc_title_copy), getString(R.string.loc_copy)) { lat, lng ->
+                val clip = getSystemService(android.content.ClipboardManager::class.java)
+                clip.setPrimaryClip(android.content.ClipData.newPlainText("location", LocationPickActivity.link(lat, lng)))
+                reply(getString(R.string.loc_copied))
+            }
+            command.toLastCaller -> withLastCall { last ->
+                val who = last.name.ifBlank { last.number }
+                pickLocation(getString(R.string.loc_title_to, who), getString(R.string.loc_send)) { lat, lng ->
+                    openWhatsApp(Contact("", who, last.number), locationMessage(lat, lng), send = true)
+                }
+            }
+            command.contactNames.isEmpty() ->
+                askFollowUp(getString(R.string.loc_ask_who)) { Command.ShareLocation(CommandParser.parseName(it)) }
+            else -> resolveContact(command.contactNames, retry = { Command.ShareLocation(CommandParser.parseName(it)) }) { contact ->
+                pickLocation(getString(R.string.loc_title_to, contact.name), getString(R.string.loc_send)) { lat, lng ->
+                    openWhatsApp(contact, locationMessage(lat, lng), send = true)
+                }
+            }
+        }
+    }
+
+    /** نقرأ آخر رقم من سجل المكالمات (نطلب الإذن أول مرة). */
+    private fun withLastCall(then: (CallLogHelper.LastCall) -> Unit) {
+        withPermission(Manifest.permission.READ_CALL_LOG, onDenied = {
+            handleDenied(Manifest.permission.READ_CALL_LOG, R.string.perm_calllog_denied, R.string.perm_calllog_denied)
+        }) {
+            val last = CallLogHelper.last(this)
+            if (last == null) reply(getString(R.string.last_none)) else then(last)
+        }
+    }
+
+    private fun lastCaller(command: Command.LastCaller) = withLastCall { last ->
+        val who = last.name.ifBlank { last.number }
+        when (command.action) {
+            com.naffith.app.core.LastCallerAction.SHOW ->
+                reply(getString(R.string.last_show, who, CallLogHelper.ago(last.time)))
+            com.naffith.app.core.LastCallerAction.CALL -> placeCall(Contact("", who, last.number))
+            com.naffith.app.core.LastCallerAction.WHATSAPP ->
+                openWhatsApp(Contact("", who, last.number), command.message, command.send)
+            com.naffith.app.core.LastCallerAction.SAVE -> when {
+                last.name.isNotBlank() && command.name.isBlank() -> reply(getString(R.string.last_already_saved, last.name))
+                command.name.isBlank() -> askFollowUp(getString(R.string.last_ask_name, last.number, CallLogHelper.ago(last.time))) {
+                    Command.LastCaller(com.naffith.app.core.LastCallerAction.SAVE, name = it.trim())
+                }
+                else -> withPermission(Manifest.permission.WRITE_CONTACTS, onDenied = {
+                    // بدون إذن: نفتح شاشة إضافة جهة اتصال جاهزة بالاسم والرقم.
+                    runCatching {
+                        startActivity(
+                            Intent(android.provider.ContactsContract.Intents.Insert.ACTION)
+                                .setType(android.provider.ContactsContract.RawContacts.CONTENT_TYPE)
+                                .putExtra(android.provider.ContactsContract.Intents.Insert.NAME, command.name)
+                                .putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, last.number)
+                        )
+                    }
+                }) {
+                    if (CallLogHelper.saveContact(this, command.name, last.number)) {
+                        reply(getString(R.string.last_saved, last.number, command.name))
+                    } else {
+                        reply(getString(R.string.cannot_open))
+                    }
+                }
+            }
+        }
+    }
+
+    /** نعرض الرد (ونقوله في وضع الصوت)، وفي النافذة نسكّر بعده. */
+    private fun reply(msg: String) {
+        setStatus(msg)
+        orb?.state = VoiceOrbView.State.IDLE
+        if (isPopup) {
+            if (voiceMode && VoicePrefs.speakReplies(this)) say(msg) { if (!isFinishing) finish() }
+            else micButton.postDelayed({ if (!isFinishing) finish() }, 2600)
+        } else if (voiceMode && VoicePrefs.speakReplies(this)) say(msg)
     }
 
     private var reminderDialog: androidx.appcompat.app.AlertDialog? = null
