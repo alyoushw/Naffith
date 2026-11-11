@@ -298,7 +298,7 @@ object Macro {
 
     private const val POLL_MS = 120L
     private const val GAP_MS = 250L
-    private const val FIND_TIMEOUT_MS = 6000L
+    private const val FIND_TIMEOUT_MS = 3000L
     private const val IDLE_MS = 350L
     private const val IDLE_TIMEOUT_MS = 3000L
 
@@ -306,12 +306,14 @@ object Macro {
      * يفتح التطبيق من أوله ويعيد الخطوات بسرعة: ما ينتظر وقت ثابت، يدوّر على الزر كل جزء من
      * الثانية ويضغطه أول ما يطلع. والخطوات اللي بدون كلام (أو السحب) تنتظر الشاشة تهدأ بس.
      */
-    fun play(service: AccessibilityService, rec: Recording, onDone: (Boolean) -> Unit) {
+    fun play(service: AccessibilityService, rec: Recording, onDone: (Boolean, Recording) -> Unit) {
         val launch = service.packageManager.getLaunchIntentForPackage(rec.packageName)
         if (launch == null) {
-            onDone(false)
+            onDone(false, rec)
             return
         }
+        // نتعلّم: الخطوة اللي ما انلقت بالكلام نخليها «بالمكان» عشان المرة الجاية ما ندوّر.
+        val learned = rec.steps.toMutableList()
         lastUiChangeAt = android.os.SystemClock.uptimeMillis()
         service.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
         val handler = Handler(Looper.getMainLooper())
@@ -321,7 +323,7 @@ object Macro {
 
         fun runStep(i: Int) {
             if (i >= rec.steps.size) {
-                onDone(true)
+                onDone(true, Recording(rec.packageName, learned))
                 return
             }
             val step = rec.steps[i]
@@ -357,9 +359,13 @@ object Macro {
                             tap(service, r.exactCenterX(), r.exactCenterY()) { next() }
                         }
                     }
-                    elapsed() < FIND_TIMEOUT_MS -> handler.postDelayed({ attempt() }, POLL_MS)
-                    // ما لقيناه بالكلام: نضغط في نفس المكان اللي ضغطته وقت التسجيل.
-                    else -> tap(service, step.x * w, step.y * h) { next() }
+                    // الصفحة خلصت تحميل والزر ما ينلقى بالكلام (أو انتهت المهلة): نضغط بالمكان على طول،
+                    // ونحفظ إن هالخطوة «بالمكان» للمرات الجاية.
+                    (inApp() && uiIdle(IDLE_MS) && elapsed() > 700) || elapsed() >= FIND_TIMEOUT_MS -> {
+                        learned[i] = step.copy(text = "", desc = "", viewId = "")
+                        tap(service, step.x * w, step.y * h) { next() }
+                    }
+                    else -> handler.postDelayed({ attempt() }, POLL_MS)
                 }
             }
             attempt()

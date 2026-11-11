@@ -237,7 +237,7 @@
     <string name="dev_screenshot">صوّرت الشاشة</string>
     <!-- الاختصارات -->
     <string name="sc_title">الاختصارات</string>
-    <string name="sc_hint">كلمة تقولها ← شي ينفّذه. مثل «تقويم أرامكو» يفتح صورة التقويم، أو «وقت النوم» يحط الجوال صامت ويضبط المنبه.</string>
+    <string name="sc_hint">كلمة تقولها ← شي ينفّذه. مثل «تقويم أرامكو» يفتح صورة التقويم، أو «وقت النوم» يحط الجوال صامت ويضبط المنبه. اضغط على أي اختصار عشان تعدّله.</string>
     <string name="sc_empty">ما عندك اختصارات للحين.</string>
     <string name="sc_add">＋ إضافة اختصار</string>
     <string name="sc_choose_type">وش تبي الاختصار يسوي؟</string>
@@ -268,6 +268,10 @@
     <string name="sc_triggers_title">وش تقول عشان يشتغل؟</string>
     <string name="sc_triggers_hint">مثل: تقويم أرامكو، التقويم (افصل بين الصيغ بفاصلة)</string>
     <string name="sc_next">التالي</string>
+    <string name="sc_edit_title">تعديل «%1$s»</string>
+    <string name="sc_edit_triggers">✏️ تعديل الكلام اللي أقوله</string>
+    <string name="sc_edit_action">🔁 تغيير اللي ينفّذه</string>
+    <string name="sc_edit_rerecord">🎬 إعادة تسجيل الخطوات</string>
     <string name="sc_saved">انحفظ الاختصار «%1$s»</string>
     <string name="sc_delete_confirm">أحذف الاختصار «%1$s»؟</string>
     <string name="sc_opening">أفتح «%1$s»…</string>

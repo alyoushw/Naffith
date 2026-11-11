@@ -849,8 +849,10 @@ open class MainActivity : AppCompatActivity() {
                         val app = applicationContext
                         runUnlocked {
                             if (isPopup) finish()
-                            Macro.play(service, rec) { ok ->
+                            Macro.play(service, rec) { ok, learned ->
                                 if (!ok) android.widget.Toast.makeText(app, R.string.cannot_open, android.widget.Toast.LENGTH_SHORT).show()
+                                // حفظ اللي تعلّمناه (خطوات صارت «بالمكان») عشان المرة الجاية أسرع.
+                                else if (learned != rec) ShortcutStore(app).save(sc.copy(value = Macro.encode(learned)))
                             }
                         }
                     }

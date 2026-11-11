@@ -36,6 +36,13 @@ class SettingsActivity : AppCompatActivity() {
         const val EXTRA_MACRO_DONE = "com.naffith.app.extra.MACRO_DONE"
         /** ضغطت إشعار «تحديث جديد». */
         const val EXTRA_START_UPDATE = "com.naffith.app.extra.START_UPDATE"
+
+        /**
+         * الاختصار اللي نعدّله الحين (نحفظه هنا عشان يبقى حتى لو رحنا نسجّل خطوات ورجعنا).
+         * null = اختصار جديد.
+         */
+        private var editingId: String? = null
+        private var editingTriggers: List<String> = emptyList()
     }
 
     private lateinit var memory: ChoiceMemory
@@ -83,7 +90,11 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_settings)
         memory = ChoiceMemory(PrefsStore(getSharedPreferences("choices", MODE_PRIVATE)))
         shortcuts = ShortcutStore(this)
-        findViewById<MaterialButton>(R.id.addShortcutButton).setOnClickListener { chooseShortcutType() }
+        findViewById<MaterialButton>(R.id.addShortcutButton).setOnClickListener {
+            editingId = null
+            editingTriggers = emptyList()
+            chooseShortcutType()
+        }
         findViewById<TextView>(R.id.versionText).text = getString(R.string.upd_version, Updater.currentVersionName(this))
         findViewById<MaterialButton>(R.id.checkUpdateButton).setOnClickListener { UpdateDialogs.manualCheck(this) }
 
@@ -163,6 +174,9 @@ class SettingsActivity : AppCompatActivity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(0, dp(6), 0, dp(6))
+                // اضغط على الاختصار عشان تعدّله.
+                isClickable = true
+                setOnClickListener { editShortcut(sc) }
             }
             row.addView(TextView(this).apply {
                 text = getString(R.string.sc_row, icon, sc.triggers.joinToString("، "), detail)
@@ -187,6 +201,42 @@ class SettingsActivity : AppCompatActivity() {
             })
             list.addView(row)
         }
+    }
+
+    /** خيارات التعديل: الكلام، اللي ينفّذه (أو إعادة التسجيل)، أو حذف. */
+    private fun editShortcut(sc: com.naffith.app.core.Shortcut) {
+        val isMacro = sc.type == com.naffith.app.core.ShortcutType.MACRO
+        val options = arrayOf(
+            getString(R.string.sc_edit_triggers),
+            getString(if (isMacro) R.string.sc_edit_rerecord else R.string.sc_edit_action),
+            getString(R.string.alias_delete),
+        )
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.sc_edit_title, sc.triggers.first()))
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        editingId = sc.id
+                        editingTriggers = sc.triggers
+                        askTriggers(sc.type, sc.value, sc.title)
+                    }
+                    1 -> {
+                        editingId = sc.id
+                        editingTriggers = sc.triggers
+                        if (isMacro) startMacroRecording() else chooseShortcutType()
+                    }
+                    else -> MaterialAlertDialogBuilder(this)
+                        .setMessage(getString(R.string.sc_delete_confirm, sc.triggers.first()))
+                        .setPositiveButton(R.string.alias_delete) { _, _ ->
+                            shortcuts.delete(sc.id)
+                            renderShortcuts()
+                        }
+                        .setNegativeButton(R.string.cancel, null)
+                        .show()
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun chooseShortcutType() {
@@ -338,6 +388,8 @@ class SettingsActivity : AppCompatActivity() {
     private fun askTriggers(type: com.naffith.app.core.ShortcutType, value: String, title: String) {
         val input = EditText(this).apply {
             hint = getString(R.string.sc_triggers_hint)
+            // تعديل: نعرض الكلام الحالي.
+            if (editingTriggers.isNotEmpty()) setText(editingTriggers.joinToString("، "))
         }
         val container = LinearLayout(this).apply {
             setPadding(dp(24), dp(8), dp(24), 0)
@@ -349,7 +401,9 @@ class SettingsActivity : AppCompatActivity() {
             .setPositiveButton(R.string.chat_save) { _, _ ->
                 val triggers = com.naffith.app.core.ShortcutMatcher.splitTriggers(input.text.toString())
                 if (triggers.isEmpty()) return@setPositiveButton
-                shortcuts.save(com.naffith.app.core.Shortcut(shortcuts.newId(), triggers, type, value, title))
+                shortcuts.save(com.naffith.app.core.Shortcut(editingId ?: shortcuts.newId(), triggers, type, value, title))
+                editingId = null
+                editingTriggers = emptyList()
                 Toast.makeText(this, getString(R.string.sc_saved, triggers.first()), Toast.LENGTH_SHORT).show()
                 renderShortcuts()
             }
