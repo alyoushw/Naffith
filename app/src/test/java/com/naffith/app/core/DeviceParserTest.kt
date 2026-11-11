@@ -37,7 +37,8 @@ class DeviceParserTest {
         assertEquals(d(DeviceAction.VOLUME_DOWN), p("نزل الصوت شوي"))
         assertEquals(d(DeviceAction.VOLUME_MUTE), p("اكتم الصوت"))
         assertEquals(d(DeviceAction.VOLUME_SET, 50), p("الصوت على ٥٠"))
-        assertEquals(d(DeviceAction.VOLUME_SET, 70), p("خل الصوت سبعة"))
+        assertEquals(d(DeviceAction.VOLUME_SET, 70), p("خل الصوت سبعة من عشرة"))
+        assertEquals(d(DeviceAction.VOLUME_SET, 7), p("خل الصوت سبعة"))
         assertEquals(d(DeviceAction.VOLUME_MAX), p("الصوت كامل"))
     }
 
@@ -97,5 +98,12 @@ class DeviceParserTest {
         for (t in listOf("علي الصوت", "زيد الصوت", "ارفع الصوت شوي", "كثر الصوت", "الصوت اعلى")) {
             assertEquals(t, d(DeviceAction.VOLUME_UP), p(t))
         }
+    }
+
+    @Test fun percentNotOutOfTen() {
+        assertEquals(d(DeviceAction.BRIGHTNESS_SET, 10), p("خفض الاضاءه الى 10%"))
+        assertEquals(d(DeviceAction.BRIGHTNESS_SET, 10), p("الإضاءة على ١٠"))
+        assertEquals(d(DeviceAction.BRIGHTNESS_SET, 10), p("خل الإضاءة عشرة بالمية"))
+        assertEquals(d(DeviceAction.VOLUME_SET, 5), p("الصوت على ٥"))
     }
 }

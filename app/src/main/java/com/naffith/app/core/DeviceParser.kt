@@ -72,6 +72,8 @@ object DeviceParser {
         val orig = text.split(Regex("\\s+")).filter { n(it).isNotEmpty() }
         val words = orig.map { n(it) }
         if (words.isEmpty()) return null
+        // «٧ من عشرة» = 70٪ (وإلا الرقم نسبة مئوية).
+        val outOfTen = n(text).let { it.contains("من عشره") || it.contains("من 10") || it.contains("من عشر") }
         if (words.isEmpty()) return null
         fun has(s: Set<String>) = words.any { w -> forms(w).any { it in s } }
         fun hasPhrase(p: String) = n(text).contains(n(p))
@@ -108,7 +110,7 @@ object DeviceParser {
             return when {
                 has(muteWords) || has(offWords) -> Command.Device(DeviceAction.VOLUME_MUTE)
                 has(maxWords) -> Command.Device(DeviceAction.VOLUME_MAX)
-                num != null -> Command.Device(DeviceAction.VOLUME_SET, percent(num))
+                num != null -> Command.Device(DeviceAction.VOLUME_SET, percent(num, outOfTen))
                 has(downWords) -> Command.Device(DeviceAction.VOLUME_DOWN)
                 has(upWords) || has(onWords) -> Command.Device(DeviceAction.VOLUME_UP)
                 has(normalRingWords) -> Command.Device(DeviceAction.RINGER_NORMAL)
@@ -131,7 +133,7 @@ object DeviceParser {
             return when {
                 has(set("تلقائي", "تلقائيه", "اوتوماتيك", "auto")) -> Command.Device(DeviceAction.BRIGHTNESS_AUTO)
                 has(maxWords) -> Command.Device(DeviceAction.BRIGHTNESS_MAX)
-                num != null -> Command.Device(DeviceAction.BRIGHTNESS_SET, percent(num))
+                num != null -> Command.Device(DeviceAction.BRIGHTNESS_SET, percent(num, outOfTen))
                 has(downWords) -> Command.Device(DeviceAction.BRIGHTNESS_DOWN)
                 has(upWords) -> Command.Device(DeviceAction.BRIGHTNESS_UP)
                 else -> null
@@ -183,7 +185,8 @@ object DeviceParser {
     }
 
     /** ٠-١٠ = من عشرة، وأكثر = نسبة مئوية. */
-    private fun percent(num: Int) = if (num in 0..10) num * 10 else num.coerceIn(0, 100)
+    /** الرقم نسبة مئوية دايماً («على ١٠» = 10٪)، إلا إذا قال «من عشرة». */
+    private fun percent(num: Int, outOfTen: Boolean) = if (outOfTen && num in 0..10) num * 10 else num.coerceIn(0, 100)
 }
 
 /** الأرقام والأوقات بالعربي (كلمات أو أرقام). */

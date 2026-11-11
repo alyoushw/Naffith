@@ -23,6 +23,7 @@ class ShortcutStore(context: Context) {
                 type = ShortcutType.valueOf(o.getString("type")),
                 value = o.getString("value"),
                 title = o.optString("title"),
+                exact = o.optBoolean("exact", false),
             )
         }
     }.getOrDefault(emptyList())
@@ -46,6 +47,7 @@ class ShortcutStore(context: Context) {
                     .put("type", s.type.name)
                     .put("value", s.value)
                     .put("title", s.title)
+                    .put("exact", s.exact)
             )
         }
         prefs.edit().putString(KEY, arr.toString()).apply()

@@ -308,4 +308,7 @@
     <string name="shot_sending">أصوّر الشاشة وأرسلها لـ %1$s…</string>
     <string name="shot_failed">ما قدرت أصوّر الشاشة وأرسلها.</string>
     <string name="shot_attach_manually">صوّرت الشاشة وفتحت المحادثة، أرفق الصورة من الاستوديو.</string>
+    <string name="correction_ask">وش كنت تقصد؟</string>
+    <string name="correction_title">تعلّمته من تصحيحك</string>
+    <string name="correction_learned">تعلّمت: «%1$s» = «%2$s»</string>
 </resources>

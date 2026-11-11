@@ -14,6 +14,8 @@ data class Shortcut(
     val type: ShortcutType,
     val value: String,
     val title: String = "",
+    /** اختصار تعلّمه مرسال من تصحيحك: يشتغل بس إذا قلت نفس الجملة (عشان «١٠٪» ما تطابق «٢٠٪»). */
+    val exact: Boolean = false,
 )
 
 /** يلقى الاختصار اللي قاله المستخدم، حتى لو قال قبله «افتح» أو «ورني». */
@@ -40,6 +42,10 @@ object ShortcutMatcher {
         for (sc in shortcuts) for (t in sc.triggers) {
             val tn = strip(t)
             if (tn.isEmpty()) continue
+            if (sc.exact) {
+                if (tn.replace(" ", "") == qc) return sc
+                continue
+            }
             val score = when {
                 tn.replace(" ", "") == qc -> 1.0
                 // الجملة فيها الاختصار كامل («افتح لي تقويم ارامكو لو سمحت»)
@@ -57,4 +63,39 @@ object ShortcutMatcher {
     /** «تقويم ارامكو، التقويم» ← ["تقويم ارامكو", "التقويم"]. */
     fun splitTriggers(text: String): List<String> =
         text.split(',', '،', '\n', '؛', ';').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+}
+
+/**
+ * التصحيح: «لا، قصدي …»، «غلط»، «مو كذا …». يرجع الأمر الصحيح (أو "" إذا قال «غلط» بس)،
+ * أو null إذا الكلام مو تصحيح.
+ */
+object Correction {
+
+    private val strong = listOf("لا قصدي", "لا اقصد", "قصدي", "اقصد", "مو كذا", "مب كذا", "مو هذا", "مب هذا", "غلطان", "غلط", "خطا")
+        .map { ArabicText.normalize(it) }
+    private val weak = listOf("لا لا", "لا").map { ArabicText.normalize(it) }
+
+    /** «قصدي»، «غلط»… أكيد تصحيح. «لا» لحالها ممكن تكون أمر («لا تزعجني»). */
+    fun isStrong(text: String): Boolean = prefix(text, strong) != null
+
+    fun parse(text: String): String? {
+        val words = text.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        val p = prefix(text, strong) ?: prefix(text, weak) ?: return null
+        // نشيل كلمات التصحيح (وأي «لا» قبلها) من أول الجملة.
+        var rest = words.drop(p)
+        while (rest.isNotEmpty() && ArabicText.normalize(rest.first()).let { it == "لا" || it == "قصدي" || it == "اقصد" }) {
+            rest = rest.drop(1)
+        }
+        return rest.joinToString(" ").trim()
+    }
+
+    /** كم كلمة في أول الجملة هي كلمة تصحيح (أو null). */
+    private fun prefix(text: String, options: List<String>): Int? {
+        val words = ArabicText.normalize(text).split(" ").filter { it.isNotEmpty() }
+        for (o in options.sortedByDescending { it.length }) {
+            val ow = o.split(" ")
+            if (words.size >= ow.size && words.take(ow.size) == ow) return ow.size
+        }
+        return null
+    }
 }

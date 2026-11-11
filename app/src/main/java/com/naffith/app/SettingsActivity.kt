@@ -401,7 +401,8 @@ class SettingsActivity : AppCompatActivity() {
             .setPositiveButton(R.string.chat_save) { _, _ ->
                 val triggers = com.naffith.app.core.ShortcutMatcher.splitTriggers(input.text.toString())
                 if (triggers.isEmpty()) return@setPositiveButton
-                shortcuts.save(com.naffith.app.core.Shortcut(editingId ?: shortcuts.newId(), triggers, type, value, title))
+                val wasLearned = editingId?.let { id -> shortcuts.all().find { it.id == id }?.exact } ?: false
+                shortcuts.save(com.naffith.app.core.Shortcut(editingId ?: shortcuts.newId(), triggers, type, value, title, exact = wasLearned))
                 editingId = null
                 editingTriggers = emptyList()
                 Toast.makeText(this, getString(R.string.sc_saved, triggers.first()), Toast.LENGTH_SHORT).show()

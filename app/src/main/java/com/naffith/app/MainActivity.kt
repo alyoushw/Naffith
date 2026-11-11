@@ -22,6 +22,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.naffith.app.core.ArabicText
 import com.naffith.app.core.Command
 import com.naffith.app.core.ChoiceMemory
 import com.naffith.app.core.CommandParser
@@ -602,6 +603,8 @@ open class MainActivity : AppCompatActivity() {
     private fun handleSpeech(alternatives: List<String>) {
         val pending = followUp
         followUp = null
+        // «لا، قصدي …» بعد أمر: ننفّذ الصح ونتعلّمه للمرة الجاية.
+        if (pending == null && handleCorrection(alternatives)) return
         // اختصارات المستخدم أول («تقويم أرامكو» ← صورة التقويم).
         if (pending == null) {
             val shortcuts = ShortcutStore(this).all()
@@ -610,6 +613,7 @@ open class MainActivity : AppCompatActivity() {
                     val sc = com.naffith.app.core.ShortcutMatcher.find(alt, shortcuts) ?: continue
                     transcriptText.text = getString(R.string.heard_format, alt.trim())
                     showAnswer(null)
+                    remember(alt)
                     runShortcut(sc)
                     return
                 }
@@ -624,7 +628,65 @@ open class MainActivity : AppCompatActivity() {
         transcriptText.text = getString(R.string.heard_format, heard)
         // أمر جديد (مو سؤال): نشيل جواب السوالف القديم.
         if (command !is Command.Unknown) showAnswer(null)
+        if (pending == null && command !is Command.Unknown) remember(heard)
         execute(command)
+    }
+
+    /** نتذكر آخر أمر نفّذناه عشان لو قال بعده «لا قصدي …» نعرف وش نصحّح. */
+    private fun remember(heard: String) {
+        lastHeard = heard.trim()
+        lastAt = System.currentTimeMillis()
+    }
+
+    /** يرجع true إذا الكلام تصحيح لآخر أمر (وتعامل معه). */
+    private fun handleCorrection(alternatives: List<String>): Boolean {
+        val previous = lastHeard ?: return false
+        if (System.currentTimeMillis() - lastAt > CORRECTION_WINDOW_MS) return false
+        val text = alternatives.firstOrNull { it.isNotBlank() }?.trim() ?: return false
+        val corrected = com.naffith.app.core.Correction.parse(text) ?: return false
+        // «لا» لحالها ممكن تكون بداية أمر عادي («لا تزعجني»): نخليه أمر.
+        if (!com.naffith.app.core.Correction.isStrong(text) && corrected.isNotEmpty() &&
+            CommandParser.parse(text) !is Command.Unknown
+        ) return false
+        transcriptText.text = getString(R.string.heard_format, text)
+        showAnswer(null)
+        if (corrected.isEmpty()) {
+            // قال «غلط» بس: نسأله وش كان يقصد ونتعلّم من جوابه.
+            askFollowUp(getString(R.string.correction_ask)) { answer ->
+                learnCorrection(previous, answer)
+                CommandParser.parseBest(listOf(answer)).second
+            }
+            return true
+        }
+        learnCorrection(previous, corrected)
+        val (_, command) = CommandParser.parseBest(listOf(corrected))
+        execute(command)
+        return true
+    }
+
+    /** نحفظ «اللي قاله» ← «اللي يقصده» كاختصار يشتغل بس على نفس الجملة، ويتعدّل من الإعدادات. */
+    private fun learnCorrection(said: String, meant: String) {
+        val m = meant.trim()
+        if (m.isEmpty() || ArabicText.normalize(m) == ArabicText.normalize(said)) return
+        val store = ShortcutStore(this)
+        val key = ArabicText.normalize(said).replace(" ", "")
+        val existing = store.all().firstOrNull { sc ->
+            sc.exact && sc.triggers.any { ArabicText.normalize(it).replace(" ", "") == key }
+        }
+        store.save(
+            com.naffith.app.core.Shortcut(
+                id = existing?.id ?: store.newId(),
+                triggers = existing?.triggers ?: listOf(said),
+                type = com.naffith.app.core.ShortcutType.COMMANDS,
+                value = m,
+                title = getString(R.string.correction_title),
+                exact = true,
+            )
+        )
+        // الأمر الجديد هو اللي ينصحّح لو غلطنا مرة ثانية.
+        lastHeard = said
+        lastAt = System.currentTimeMillis()
+        Toast.makeText(this, getString(R.string.correction_learned, said, m), Toast.LENGTH_LONG).show()
     }
 
     private fun execute(command: Command) {
@@ -1345,6 +1407,10 @@ open class MainActivity : AppCompatActivity() {
         /** افتح الشاشة الكاملة حتى لو «افتح كنافذة مساعد» مفعّل. */
         const val EXTRA_FULL_APP = "com.naffith.app.extra.FULL_APP"
         private const val LANGUAGE = "ar-SA"
+        /** نقبل التصحيح خلال دقيقتين من الأمر (ثابت عشان يشتغل بين نوافذ المساعد). */
+        private const val CORRECTION_WINDOW_MS = 120_000L
+        private var lastHeard: String? = null
+        private var lastAt = 0L
         // ثوابت من API 31، نكتبها كأرقام عشان تشتغل مع minSdk 24.
         private const val ERROR_LANGUAGE_NOT_SUPPORTED = 12
         private const val ERROR_LANGUAGE_UNAVAILABLE = 13
