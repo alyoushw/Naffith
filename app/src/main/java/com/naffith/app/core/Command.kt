@@ -84,6 +84,9 @@ sealed interface Command {
         val send: Boolean = false,
     ) : Command
 
+    /** «ابحث عن محل العبير واتصل عليه»: نلقى رقم المحل (مو من جهات الاتصال) ونتصل بعد التأكيد. */
+    data class CallPlace(val query: String) : Command
+
     /** أمر غير مفهوم، مع النص الذي سُمع. */
     data class Unknown(val heard: String) : Command
 }

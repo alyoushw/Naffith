@@ -111,8 +111,56 @@ object CommandParser {
     fun parseMulti(text: String, nowMinutes: Int = currentMinutes()): Command {
         // «ذكرني بعد دقيقة واتصل على روحي» أمر واحد، مو أمرين.
         parse(text, nowMinutes).let { if (it is Command.CallLater) return it }
-        return MultiCommand.parse(text) { parse(it, nowMinutes) } ?: parse(text, nowMinutes)
+        val cmd = MultiCommand.parse(text) { parse(it, nowMinutes) } ?: parse(text, nowMinutes)
+        return placeCalls(text, cmd)
     }
+
+    private val businessNouns = placeNouns + setOf(
+        "محل", "محلات", "شركه", "مكتب", "مركز", "معرض", "مؤسسه", "ورشه", "عياده", "مختبر", "صالون", "متجر", "سنتر",
+        "فرع", "وكاله", "مطبعه", "خياط", "محمص", "حلويات", "ستور", "مكتبه", "موقع"
+    )
+    private val placePronouns = setOf("عليه", "عليها", "عليهم", "فيه", "فيها", "فيهم", "له", "لها", "لهم", "معه", "معهم", "معاهم", "هو", "هم")
+    private val mapsHints = setOf("خريطه", "الخريطه", "الخرائط", "خرايط", "ماب", "مابس", "الماب")
+
+    private fun vague(names: List<String>) =
+        names.isEmpty() || names.all { n -> ArabicText.normalize(n).split(" ").all { it in placePronouns } }
+
+    /** «اتصل عليه» بعد «ابحث عن محل…» = اتصال بالمحل نفسه، مو بجهة اتصال. */
+    /** «موقع العبير للاتصالات» ← «العبير للاتصالات». */
+    private fun placeName(q: String): String {
+        val w = q.trim().split(Regex("\\s+"))
+        return if (w.size > 1 && ArabicText.normalize(w.first()) in setOf("موقع", "مكان", "لوكيشن")) w.drop(1).joinToString(" ") else q.trim()
+    }
+
+    private fun placeCalls(text: String, cmd: Command): Command {
+        val words = ArabicText.normalize(text).split(" ").filter { it.isNotEmpty() }
+        val wantsSearch = words.any { isWord(it, searchVerbs) || it in mapsHints }
+        return when (cmd) {
+            is Command.Sequence -> {
+                val out = mutableListOf<Command>()
+                for (step in cmd.steps) {
+                    val prev = out.lastOrNull()
+                    if (step is Command.Call && vague(step.contactNames) && prev is Command.OpenMaps && prev.query.isNotBlank()) {
+                        out[out.lastIndex] = Command.CallPlace(placeName(prev.query))
+                    } else out += step
+                }
+                if (out.size == 1) out.first() else Command.Sequence(out)
+            }
+            is Command.Call -> if (wantsSearch && cmd.contactNames.isNotEmpty()) {
+                val place = ArabicText.normalize(cmd.contactNames.first()).split(" ")
+                    .filterNot { it in placePronouns || isWord(it, searchVerbs) || it in mapsHints || it == "عن" || it == "في" || it == "لي" }
+                    .joinToString(" ")
+                if (place.isBlank()) cmd else Command.CallPlace(placeName(place))
+            } else cmd
+            else -> cmd
+        }
+    }
+
+    /** «محل العبير» / «صيدلية النهدي»: اسم نشاط تجاري؟ */
+    fun looksLikeBusiness(name: String): Boolean =
+        ArabicText.normalize(name).split(" ").firstOrNull()?.let { it in businessNouns } ?: false
+
+    fun isVagueName(names: List<String>) = vague(names)
 
     fun parse(raw: String, nowMinutes: Int = currentMinutes()): Command {
         // «7:15» ← «7 15» عشان الوقت يتفهم كساعة ودقايق.

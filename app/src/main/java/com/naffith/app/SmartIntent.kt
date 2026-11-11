@@ -92,9 +92,10 @@ object SmartIntent {
     }
 
     /** رقم مكان أو محل: نبحث في Google عن طريق Gemini. */
-    suspend fun findPhone(context: Context, place: String): Phone? {
+    suspend fun findPhone(context: Context, place: String, near: String? = null): Phone? {
         val p = buildString {
-            appendLine("ابحث في Google عن رقم هاتف هذا المكان في السعودية: «$place».")
+            appendLine("ابحث في Google (وخرائط Google) عن رقم هاتف هذا المحل أو المكان في السعودية: «$place».")
+            if (near != null) appendLine("المستخدم قريب من الإحداثيات $near، فاختر أقرب فرع له.")
             if (recent.isNotEmpty()) appendLine("سياق: ${recent.last()}")
             appendLine("رد بسطر واحد فقط بهذا الشكل بالضبط: PHONE: <الرقم> | NAME: <اسم المكان الرسمي>")
             appendLine("إذا ما لقيت رقم مؤكد رد: PHONE: none")

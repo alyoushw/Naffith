@@ -692,7 +692,8 @@ open class MainActivity : AppCompatActivity() {
 
     private fun needsSmart(command: Command): Boolean = when (command) {
         is Command.Unknown -> command.heard.isNotBlank()
-        is Command.Call -> SmartIntent.hasContext() && vagueNames(command.contactNames)
+        is Command.Call -> SmartIntent.hasContext() && vagueNames(command.contactNames) &&
+            (lastPlaceQuery == null || System.currentTimeMillis() - lastPlaceAt > 10 * 60_000)
         is Command.WhatsApp -> SmartIntent.hasContext() && vagueNames(command.contactNames) && command.nameAndMessage.isBlank()
         is Command.CallLater -> SmartIntent.hasContext() && vagueNames(command.contactNames)
         is Command.ShareLocation -> SmartIntent.hasContext() && !command.copyOnly && !command.toLastCaller && vagueNames(command.contactNames)
@@ -734,10 +735,26 @@ open class MainActivity : AppCompatActivity() {
 
     /** «اتصل على العبير للاتصالات»: نلقى رقم المكان، ونتأكد منك قبل الاتصال. */
     private fun callPlace(place: String) {
+        SmartIntent.remember("اتصال على محل/مكان: $place")
+        if (GeminiClient.apiKey(this).isBlank()) {
+            // بدون مفتاح Gemini ما نقدر ندوّر الرقم: نفتح المحل في الخرائط وتتصل من صفحته.
+            execute(Command.OpenMaps(place))
+            setStatus(getString(R.string.smart_no_phone, place))
+            return
+        }
         setStatus(getString(R.string.smart_finding_phone, place))
         orb?.state = VoiceOrbView.State.THINKING
+        // موقعك التقريبي (إذا فيه إذن) عشان يلقى أقرب فرع.
+        val near = if (hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION) || hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
+            runCatching {
+                val lm = getSystemService(android.location.LocationManager::class.java)
+                listOf(android.location.LocationManager.NETWORK_PROVIDER, android.location.LocationManager.GPS_PROVIDER, android.location.LocationManager.PASSIVE_PROVIDER)
+                    .firstNotNullOfOrNull { p -> runCatching { lm.getLastKnownLocation(p) }.getOrNull() }
+                    ?.let { String.format(java.util.Locale.US, "%.4f,%.4f", it.latitude, it.longitude) }
+            }.getOrNull()
+        } else null
         lifecycleScope.launch {
-            val phone = SmartIntent.findPhone(this@MainActivity, place)
+            val phone = SmartIntent.findPhone(this@MainActivity, place, near)
             orb?.state = VoiceOrbView.State.IDLE
             if (isFinishing) return@launch
             if (phone == null) {
@@ -833,6 +850,16 @@ open class MainActivity : AppCompatActivity() {
 
     private fun execute(command: Command) {
         if (command !is Command.Sequence) SmartIntent.remember(describe(command))
+        if (command is Command.OpenMaps && command.query.isNotBlank()) {
+            lastPlaceQuery = command.query
+            lastPlaceAt = System.currentTimeMillis()
+        }
+        // «اتصل عليه» بعد ما فتحنا محل في الخرائط = اتصل بالمحل.
+        val recentPlace = lastPlaceQuery?.takeIf { System.currentTimeMillis() - lastPlaceAt < 10 * 60_000 }
+        if (command is Command.Call && CommandParser.isVagueName(command.contactNames) && recentPlace != null) {
+            callPlace(recentPlace)
+            return
+        }
         when (command) {
             is Command.OpenMaps -> if (command.navigate && command.query.isNotBlank()) {
                 // «وجهني الى …»: الملاحة تبدأ على طول، و«المنزل» يروح للبيت المحفوظ.
@@ -918,6 +945,8 @@ open class MainActivity : AppCompatActivity() {
             is Command.Remind -> scheduleReminder(command)
 
             is Command.ShareLocation -> shareLocation(command)
+
+            is Command.CallPlace -> callPlace(command.query)
 
             is Command.LastCaller -> lastCaller(command)
 
@@ -1632,6 +1661,10 @@ open class MainActivity : AppCompatActivity() {
                 startListeningWithPermission()
             }
             .setNegativeButton(R.string.cancel, null)
+            .apply {
+                // «اتصل على محل العبير» وما هو في جهات الاتصال: ندوّره كمحل.
+                if (retry(name) is Command.Call) setNeutralButton(R.string.search_as_place) { _, _ -> callPlace(name) }
+            }
             .show()
     }
 
@@ -1760,6 +1793,9 @@ open class MainActivity : AppCompatActivity() {
         /** نقبل التصحيح خلال دقيقتين من الأمر (ثابت عشان يشتغل بين نوافذ المساعد). */
         private const val CORRECTION_WINDOW_MS = 120_000L
         private var lastHeard: String? = null
+        /** آخر محل فتحناه في الخرائط (ثابت بين نوافذ المساعد): «اتصل عليه» تروح له. */
+        private var lastPlaceQuery: String? = null
+        private var lastPlaceAt = 0L
         private var lastAt = 0L
         // ثوابت من API 31، نكتبها كأرقام عشان تشتغل مع minSdk 24.
         private const val ERROR_LANGUAGE_NOT_SUPPORTED = 12

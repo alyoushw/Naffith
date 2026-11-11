@@ -383,4 +383,5 @@
     <string name="smart_call_place_msg">الرقم اللي لقيته: %1$s\nتأكد منه قبل الاتصال.</string>
     <string name="smart_call">📞 اتصل</string>
     <string name="smart_open_maps">افتحه في الخرائط</string>
+    <string name="search_as_place">دوّره كمحل</string>
 </resources>
