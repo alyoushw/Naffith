@@ -81,12 +81,15 @@ object CallReminder {
         context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     /**
-     * إشعار ثابت في صفحة الإشعارات فيه عد تنازلي لين وقت التذكير (زي الـDynamic Island).
-     * للاتصال: لما يجي الوقت ينستبدل بإشعار «اتصل / إلغاء». للتذكير العادي: يختفي في وقته
-     * (المنبه نفسه يرن من تطبيق الساعة).
+     * إشعار ثابت فيه عد تنازلي وشريط تقدّم لين وقت التذكير. للاتصال: لما يجي الوقت ينستبدل
+     * بإشعار «اتصل / إلغاء». انظر [Countdown].
      */
     fun countdown(context: Context, id: Int, title: String, at: Long, callNumber: String? = null, cancel: PendingIntent? = null) {
         if (!isSoon(at) || at <= System.currentTimeMillis() || !canNotify(context)) return
+        Countdown.start(context, Countdown.Spec(id, title, System.currentTimeMillis(), at, callNumber), cancel)
+    }
+
+    fun channelCountdown(context: Context): String {
         val nm = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
             nm.createNotificationChannel(
@@ -94,61 +97,11 @@ object CallReminder {
                     .apply { setSound(null, null); enableVibration(false); setShowBadge(false) }
             )
         }
-        val time = String.format(java.util.Locale("ar"), "%tl:%<tM %s", at, if (Calendar.getInstance().apply { timeInMillis = at }.get(Calendar.HOUR_OF_DAY) < 12) "الصبح" else "المسا")
-        val cancel = cancel ?: PendingIntent.getBroadcast(
-            context, id,
-            Intent(context, CallReminderReceiver::class.java).setAction(ACTION_CANCEL).putExtra(EXTRA_ID, id),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val timeText = context.getString(R.string.countdown_at, time)
-        // «إشعار مباشر» مفعّل (أندرويد ١٦): النظام يرسمه بنفسه في Now Bar والشريط.
-        // غير كذا: تصميمنا، العد كبير وواضح.
-        val live = canPostLive(nm)
-        val b = NotificationCompat.Builder(context, CHANNEL_COUNTDOWN)
-            .setSmallIcon(R.drawable.ic_mic)
-            .setContentTitle(title)
-            .setContentText(timeText)
-            .setWhen(at)
-            .setShowWhen(true)
-            .setUsesChronometer(true)
-            .setChronometerCountDown(true)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setSilent(true)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setTimeoutAfter(at - System.currentTimeMillis() + 5_000)
-            .addExtras(Bundle().apply { putBoolean(EXTRA_PROMOTED, true) })
-        if (callNumber != null) {
-            val call = PendingIntent.getActivity(
-                context, id,
-                Intent(context, CallNowActivity::class.java)
-                    .putExtra(EXTRA_NUMBER, callNumber).putExtra(EXTRA_ID, id)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            b.addAction(0, context.getString(R.string.countdown_call_now), call)
-            b.addAction(0, context.getString(R.string.call_later_cancel), cancel)
-        } else {
-            b.addAction(0, context.getString(R.string.rem_cancel), cancel)
-        }
-        if (!live) {
-            val base = android.os.SystemClock.elapsedRealtime() + (at - System.currentTimeMillis())
-            fun views(layout: Int) = android.widget.RemoteViews(context.packageName, layout).apply {
-                setTextViewText(R.id.cd_title, title)
-                setChronometer(R.id.cd_timer, base, null, true)
-                setChronometerCountDown(R.id.cd_timer, true)
-                if (layout == R.layout.notif_countdown_big) setTextViewText(R.id.cd_time, timeText)
-            }
-            b.setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                .setCustomContentView(views(R.layout.notif_countdown_small))
-                .setCustomBigContentView(views(R.layout.notif_countdown_big))
-                .setShowWhen(false)
-        }
-        // «إشعار مباشر» (فوق في الشريط وفي Now Bar): الطلب نفسه في [EXTRA_PROMOTED] فوق.
-        if (!live && Build.VERSION.SDK_INT >= 36) askForLiveNotifications(context, nm)
-        runCatching { nm.notify(id, b.build()) }
+        if (Build.VERSION.SDK_INT >= 36 && !canPostLive(nm)) askForLiveNotifications(context, nm)
+        return CHANNEL_COUNTDOWN
     }
+
+    const val EXTRA_PROMOTED_KEY = EXTRA_PROMOTED
 
     /** إذا «الإشعارات المباشرة» مقفلة لمرسال: إشعار يوديك لمكان تفعيلها (مرة كل يومين بالكثير). */
     private fun askForLiveNotifications(context: Context, nm: NotificationManager) {

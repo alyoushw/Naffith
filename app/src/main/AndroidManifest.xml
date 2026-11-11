@@ -173,6 +173,7 @@
         -->
         <receiver android:name=".CallReminderReceiver" android:exported="false" />
         <receiver android:name=".ReminderReceiver" android:exported="false" />
+        <receiver android:name=".CountdownReceiver" android:exported="false" />
         <activity
             android:name=".ReminderAlertActivity"
             android:exported="false"

@@ -346,4 +346,5 @@
     <string name="rem_minutes">%1$d د</string>
     <string name="rem_hour">ساعة</string>
     <string name="rem_snoozed">بذكّرك بعد %1$d دقيقة</string>
+    <string name="countdown_left">باقي</string>
 </resources>
