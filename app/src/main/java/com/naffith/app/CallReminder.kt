@@ -97,7 +97,6 @@ object CallReminder {
                     .apply { setSound(null, null); enableVibration(false); setShowBadge(false) }
             )
         }
-        if (Build.VERSION.SDK_INT >= 36 && !canPostLive(nm)) askForLiveNotifications(context, nm)
         return CHANNEL_COUNTDOWN
     }
 

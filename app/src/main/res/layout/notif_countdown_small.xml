@@ -1,45 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- العد التنازلي (مصغّر): العنوان والعد على سطر، وتحتهم شريط. -->
+<!-- العد التنازلي: دائرة تقصر مع الوقت وداخلها التايمر، وجنبها العنوان ووقت التذكير. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+    <FrameLayout
+        android:layout_width="60dp"
+        android:layout_height="60dp">
 
-        <TextView
-            android:id="@+id/cd_title"
-            style="@style/TextAppearance.Compat.Notification.Title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textSize="15sp" />
+        <ProgressBar
+            android:id="@+id/cd_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:indeterminate="false"
+            android:max="1000"
+            android:progress="1000"
+            android:progressDrawable="@drawable/countdown_ring" />
 
         <Chronometer
             android:id="@+id/cd_timer"
             style="@style/TextAppearance.Compat.Notification.Title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_gravity="center"
             android:layoutDirection="ltr"
-            android:textColor="#8B7CFF"
-            android:textSize="24sp"
+            android:textSize="12sp"
             android:textStyle="bold" />
-    </LinearLayout>
+    </FrameLayout>
 
-    <ProgressBar
-        android:id="@+id/cd_progress"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="6dp"
-        android:layout_marginTop="6dp"
-        android:max="1000"
-        android:progressBackgroundTint="#33FFFFFF"
-        android:progressTint="#8B7CFF" />
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/cd_title"
+            style="@style/TextAppearance.Compat.Notification.Title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/cd_time"
+            style="@style/TextAppearance.Compat.Notification"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:maxLines="1"
+            android:textSize="13sp" />
+    </LinearLayout>
 </LinearLayout>

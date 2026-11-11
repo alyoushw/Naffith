@@ -1,7 +1,6 @@
 package com.naffith.app
 
 import android.app.AlarmManager
-import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -17,9 +16,8 @@ import java.util.Calendar
 import java.util.Locale
 
 /**
- * إشعار العد التنازلي: العد كبير، وشريط يتعبّى لين يجي الوقت.
- * أندرويد ١٦: شكل النظام (ProgressStyle) عشان يقدر يطلع «إشعار مباشر» في الشريط وNow Bar.
- * قبل كذا: تصميمنا. الشريط يتحدّث كل شوي لين الوقت.
+ * إشعار العد التنازلي بحجم عادي: دائرة تقصر مع الوقت وداخلها التايمر.
+ * الدائرة تتحدّث كل شوي لين الوقت (التايمر نفسه يعد لحاله).
  */
 object Countdown {
 
@@ -70,64 +68,35 @@ object Countdown {
             putBoolean(CallReminder.EXTRA_PROMOTED_KEY, true)
             putBoolean(MARKER, true)
         }
-        val n: Notification = if (Build.VERSION.SDK_INT >= 36) {
-            // شكل النظام: شريط تقدّم + عد تنازلي، ويقدر يطلع في Now Bar.
-            val style = Notification.ProgressStyle()
-                .setProgressSegments(listOf(Notification.ProgressStyle.Segment(1000).setColor(brand)))
-                .setStyledByProgress(true)
-                .setProgress(progress)
-            val b = Notification.Builder(context, channel)
-                .setSmallIcon(R.drawable.ic_mic)
-                .setContentTitle(spec.title)
-                .setContentText(atText)
-                .setStyle(style)
-                .setColor(brand)
-                .setWhen(spec.at)
-                .setShowWhen(true)
-                .setUsesChronometer(true)
-                .setChronometerCountDown(true)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .setCategory(Notification.CATEGORY_REMINDER)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setTimeoutAfter(spec.at - now + 5_000)
-                .addExtras(extras)
-            if (call != null) {
-                b.addAction(Notification.Action.Builder(null as android.graphics.drawable.Icon?, context.getString(R.string.countdown_call_now), call).build())
-            }
-            b.addAction(Notification.Action.Builder(null as android.graphics.drawable.Icon?, cancelLabel, cancel).build())
-            b.build()
-        } else {
-            val base = SystemClock.elapsedRealtime() + (spec.at - now)
-            fun views(layout: Int) = RemoteViews(context.packageName, layout).apply {
-                setTextViewText(R.id.cd_title, spec.title)
-                setChronometer(R.id.cd_timer, base, null, true)
-                setChronometerCountDown(R.id.cd_timer, true)
-                setProgressBar(R.id.cd_progress, 1000, progress, false)
-                if (layout == R.layout.notif_countdown_big) {
-                    setTextViewText(R.id.cd_time, atText)
-                    setTextViewText(R.id.cd_start, context.getString(R.string.countdown_left))
-                }
-            }
-            val b = NotificationCompat.Builder(context, channel)
-                .setSmallIcon(R.drawable.ic_mic)
-                .setContentTitle(spec.title)
-                .setContentText(atText)
-                .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                .setCustomContentView(views(R.layout.notif_countdown_small))
-                .setCustomBigContentView(views(R.layout.notif_countdown_big))
-                .setShowWhen(false)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .setSilent(true)
-                .setCategory(NotificationCompat.CATEGORY_REMINDER)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setTimeoutAfter(spec.at - now + 5_000)
-                .addExtras(extras)
-            if (call != null) b.addAction(0, context.getString(R.string.countdown_call_now), call)
-            b.addAction(0, cancelLabel, cancel)
-            b.build()
+        // الدائرة تبين الباقي: تبدأ مليانة وتقصر لين الصفر.
+        val remaining = 1000 - progress
+        val base = SystemClock.elapsedRealtime() + (spec.at - now)
+        val views = RemoteViews(context.packageName, R.layout.notif_countdown_small).apply {
+            setTextViewText(R.id.cd_title, spec.title)
+            setTextViewText(R.id.cd_time, atText)
+            setChronometer(R.id.cd_timer, base, null, true)
+            setChronometerCountDown(R.id.cd_timer, true)
+            setProgressBar(R.id.cd_progress, 1000, remaining, false)
         }
+        val b = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_mic)
+            .setContentTitle(spec.title)
+            .setContentText(atText)
+            .setColor(brand)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(views)
+            .setCustomBigContentView(views)
+            .setShowWhen(false)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setTimeoutAfter(spec.at - now + 5_000)
+            .addExtras(extras)
+        if (call != null) b.addAction(0, context.getString(R.string.countdown_call_now), call)
+        b.addAction(0, cancelLabel, cancel)
+        val n = b.build()
         runCatching { nm.notify(spec.id, n) }
     }
 
@@ -135,7 +104,7 @@ object Countdown {
     private fun scheduleTick(context: Context, spec: Spec, cancel: PendingIntent) {
         val total = spec.at - spec.start
         val step = when {
-            total <= 10 * 60_000L -> 15_000L
+            total <= 10 * 60_000L -> 10_000L
             total <= 60 * 60_000L -> 30_000L
             else -> 60_000L
         }
