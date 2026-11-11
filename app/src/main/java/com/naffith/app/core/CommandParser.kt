@@ -114,7 +114,9 @@ object CommandParser {
         return MultiCommand.parse(text) { parse(it, nowMinutes) } ?: parse(text, nowMinutes)
     }
 
-    fun parse(text: String, nowMinutes: Int = currentMinutes()): Command {
+    fun parse(raw: String, nowMinutes: Int = currentMinutes()): Command {
+        // «7:15» ← «7 15» عشان الوقت يتفهم كساعة ودقايق.
+        val text = raw.replace(timeColon, "$1 $2")
         val tokens = stripFillers(ArabicText.tokenize(text))
         if (tokens.isEmpty()) return Command.Unknown(text)
 
@@ -353,11 +355,16 @@ object CommandParser {
 
     /** كلمات الجدولة والوقت اللي نشيلها عشان يبقى اسم الشخص بس. */
     private val laterWords = setOf(
-        "ذكرني", "ذكريني", "نبهني", "نبهيني", "جهز", "جهزلي", "جهزي", "تجهز", "تجهزلي", "تجهزي", "ابغاك", "ابيك", "ابغيك",
+        "ذكرني", "ذكريني", "نبهني", "نبهيني", "تذكرني", "تذكريني", "تنبهني", "تذكرنا", "ذكرنا", "جهز", "جهزلي", "جهزي", "تجهز", "تجهزلي", "تجهزي", "ابغاك", "ابيك", "ابغيك",
         "بعد", "الساعه", "ساعه", "ساعات", "ساعتين", "دقيقه", "دقايق", "دقائق", "دقيقتين", "ثانيه", "ثواني",
         "نص", "ربع", "ونص", "وربع", "وثلث", "الا", "ثلث", "الصبح", "الصباح", "صباحا", "العصر", "الظهر", "المغرب",
         "المسا", "المساء", "مساء", "الليل", "بالليل", "الفجر", "العشا", "اليوم"
     )
+
+    /** «٧ المسا» بدون «الساعة». */
+    private val dayParts = setOf("الصبح", "الصباح", "صباحا", "العصر", "الظهر", "المغرب", "المسا", "المساء", "مساء", "بالليل", "الليل", "العشا", "الفجر")
+
+    private val timeColon = Regex("([0-9٠-٩]{1,2})\\s*[:：٫.]\\s*([0-9٠-٩]{2})")
 
     private val reasonWords = setOf("عشان", "علشان", "لان", "بخصوص", "عشانه", "عشانها", "بسبب", "عن", "نتكلم", "نسولف")
     /** «لا ذكرني…» / «ابي…» قبل الأمر. */
@@ -376,16 +383,21 @@ object CommandParser {
         val at: Int?
         when {
             dur != null && "بعد" in words -> { delay = dur; at = null }
-            "الساعه" in words -> { at = TimeParser.clock(words, nowMinutes) ?: return null; delay = null }
+            "الساعه" in words || (words.any { it in dayParts } && words.any { it.toIntOrNull() != null || TimeParser.wordNumber(it) != null }) ->
+                { at = TimeParser.clock(words, nowMinutes) ?: return null; delay = null }
             else -> return null
         }
-        val kept = tokens.filterNot { t ->
+        fun isTime(t: Token) =
             t.normalized in laterWords || t.normalized.toIntOrNull() != null || TimeParser.wordNumber(t.normalized) != null
-        }
-        // السبب: «… عشان الغداء» ما هو من الاسم، نحطه ملاحظة في التذكير.
+        val kept = tokens.filterNot { isTime(it) }
+        // السبب: «… عشان الغداء» ما هو من الاسم، نحطه ملاحظة في التذكير (لين يبدأ الوقت).
         val reasonAt = kept.indexOfFirst { it.normalized in reasonWords }
-        val note = if (reasonAt >= 0) kept.drop(reasonAt).filterNot { isCallFiller(it.normalized) }
-            .joinToString(" ") { it.original } else ""
+        val note = if (reasonAt >= 0) {
+            val fromReason = tokens.drop(tokens.indexOf(kept[reasonAt]))
+            fromReason.takeWhile { it.normalized != "الساعه" && it.normalized != "بعد" }
+                .filterNot { isCallFiller(it.normalized) }
+                .joinToString(" ") { it.original }
+        } else ""
         val nameTokens = (if (reasonAt >= 0) kept.take(reasonAt) else kept)
             .dropWhile { it.normalized in leadNoise }
             .filterNot { isCallFiller(it.normalized) }
