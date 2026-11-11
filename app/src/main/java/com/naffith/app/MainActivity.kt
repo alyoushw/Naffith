@@ -971,7 +971,7 @@ open class MainActivity : AppCompatActivity() {
     /** نجهّز إشعار «اتصل / إلغاء» في الوقت اللي قاله. */
     private fun scheduleCallLater(contact: Contact, command: Command.CallLater) {
         val doIt = {
-            CallReminder.schedule(applicationContext, contact.name, contact.number, command.delaySeconds, command.atMinutes)
+            CallReminder.schedule(applicationContext, contact.name, contact.number, command.delaySeconds, command.atMinutes, command.note)
             val msg = getString(R.string.call_later_set, contact.name, CallReminder.describe(command.delaySeconds, command.atMinutes))
             setStatus(msg)
             orb?.state = VoiceOrbView.State.IDLE

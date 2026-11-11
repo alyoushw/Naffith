@@ -34,7 +34,11 @@ object CommandParser {
         "مستوصف", "مول", "سوبرماركت", "بقاله", "مسجد", "جامع", "بنك", "صراف", "فندق", "مغسله", "حلاق",
         "مخبز", "مطار", "مدرسه", "حديقه", "بارك", "مقاهي", "كافيهات", "restaurant", "cafe", "pharmacy"
     )
-    private val callWords = setOf("اتصل", "اتصلي", "اتصال", "دق", "دقي", "كلم", "كلمي", "اضرب", "call", "تتصل", "اتصلوا")
+    private val callWords = setOf(
+        "اتصل", "اتصلي", "اتصال", "دق", "دقي", "كلم", "كلمي", "اضرب", "call", "تتصل", "اتصلوا",
+        // «ذكرني أكلم أمي» / «ذكرني أدق على أبوي»
+        "اكلم", "اكلمه", "اكلمها", "ادق", "ادقه", "ادق", "اتصله", "نتصل", "نكلم"
+    )
     private val playWords = setOf("شغل", "شغلي", "شغللي")
 
     /** كلمات تُحذف من بداية أو نهاية المعامل (البحث أو الاسم). */
@@ -355,6 +359,15 @@ object CommandParser {
         "المسا", "المساء", "مساء", "الليل", "بالليل", "الفجر", "العشا", "اليوم"
     )
 
+    private val reasonWords = setOf("عشان", "علشان", "لان", "بخصوص", "عشانه", "عشانها", "بسبب", "عن", "نتكلم", "نسولف")
+    /** «لا ذكرني…» / «ابي…» قبل الأمر. */
+    private val leadNoise = setOf("لا", "ابي", "ابغى", "ابغي", "ابا", "يعني", "طيب", "ممكن")
+
+    /** «واتصل عليها» / «عليه» / «له»: مو من الاسم. */
+    private fun isCallFiller(w: String): Boolean =
+        w in callWords || (w.startsWith("و") && w.drop(1) in callWords) ||
+            w in setOf("عليه", "عليها", "عليهم", "له", "لها", "معه", "معها", "و")
+
     /** «بعد دقيقة جهز لي اتصال لروحي» ← اتصال مجهّز بعد ٦٠ ثانية. */
     private fun scheduledCall(tokens: List<Token>, nowMinutes: Int): Command? {
         val words = tokens.map { it.normalized }
@@ -366,10 +379,17 @@ object CommandParser {
             "الساعه" in words -> { at = TimeParser.clock(words, nowMinutes) ?: return null; delay = null }
             else -> return null
         }
-        val rest = tokens.filterNot { t ->
+        val kept = tokens.filterNot { t ->
             t.normalized in laterWords || t.normalized.toIntOrNull() != null || TimeParser.wordNumber(t.normalized) != null
         }
-        return Command.CallLater(contactNames(rest, emptySet()), delay, at)
+        // السبب: «… عشان الغداء» ما هو من الاسم، نحطه ملاحظة في التذكير.
+        val reasonAt = kept.indexOfFirst { it.normalized in reasonWords }
+        val note = if (reasonAt >= 0) kept.drop(reasonAt).filterNot { isCallFiller(it.normalized) }
+            .joinToString(" ") { it.original } else ""
+        val nameTokens = (if (reasonAt >= 0) kept.take(reasonAt) else kept)
+            .dropWhile { it.normalized in leadNoise }
+            .filterNot { isCallFiller(it.normalized) }
+        return Command.CallLater(contactNames(nameTokens, emptySet()), delay, at, note.trim())
     }
 
     private fun contactNames(tokens: List<Token>, appWords: Set<String>): List<String> {

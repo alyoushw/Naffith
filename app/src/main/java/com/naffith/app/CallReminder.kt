@@ -29,27 +29,29 @@ object CallReminder {
     const val EXTRA_NAME = "name"
     const val EXTRA_NUMBER = "number"
     const val EXTRA_ID = "id"
+    const val EXTRA_NOTE = "note"
     const val ACTION_FIRE = "com.naffith.app.CALL_REMINDER_FIRE"
     const val ACTION_CANCEL = "com.naffith.app.CALL_REMINDER_CANCEL"
 
     /** يرجع وقت التنفيذ بالمللي ثانية. */
-    fun schedule(context: Context, name: String, number: String, delaySeconds: Int?, atMinutes: Int?): Long {
+    fun schedule(context: Context, name: String, number: String, delaySeconds: Int?, atMinutes: Int?, note: String = ""): Long {
         val at = timeFor(delaySeconds, atMinutes)
         val id = idFor(at, number)
-        val pi = firePending(context, id, name, number)
+        val pi = firePending(context, id, name, number, note)
         val am = context.getSystemService(AlarmManager::class.java)
         val exact = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
         if (exact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
         else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-        countdown(context, id, context.getString(R.string.countdown_call, name), at, number)
+        val title = context.getString(R.string.countdown_call, name) + if (note.isNotBlank()) " · $note" else ""
+        countdown(context, id, title, at, number)
         return at
     }
 
-    private fun firePending(context: Context, id: Int, name: String, number: String): PendingIntent =
+    private fun firePending(context: Context, id: Int, name: String, number: String, note: String): PendingIntent =
         PendingIntent.getBroadcast(
             context, id,
             Intent(context, CallReminderReceiver::class.java).setAction(ACTION_FIRE)
-                .putExtra(EXTRA_NAME, name).putExtra(EXTRA_NUMBER, number).putExtra(EXTRA_ID, id),
+                .putExtra(EXTRA_NAME, name).putExtra(EXTRA_NUMBER, number).putExtra(EXTRA_ID, id).putExtra(EXTRA_NOTE, note),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -140,7 +142,7 @@ object CallReminder {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
-    fun show(context: Context, name: String, number: String, id: Int) {
+    fun show(context: Context, name: String, number: String, id: Int, note: String = "") {
         val nm = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
             nm.createNotificationChannel(
@@ -162,7 +164,7 @@ object CallReminder {
         val n = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_mic)
             .setContentTitle(context.getString(R.string.call_later_title, name))
-            .setContentText(context.getString(R.string.call_later_text))
+            .setContentText(note.ifBlank { context.getString(R.string.call_later_text) })
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -210,7 +212,8 @@ class CallReminderReceiver : BroadcastReceiver() {
                 context,
                 intent.getStringExtra(CallReminder.EXTRA_NAME).orEmpty(),
                 intent.getStringExtra(CallReminder.EXTRA_NUMBER).orEmpty(),
-                id
+                id,
+                intent.getStringExtra(CallReminder.EXTRA_NOTE).orEmpty()
             )
             CallReminder.ACTION_CANCEL -> {
                 context.getSystemService(NotificationManager::class.java).cancel(id)

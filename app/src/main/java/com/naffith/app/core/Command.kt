@@ -52,7 +52,13 @@ sealed interface Command {
      * «بعد دقيقة جهز لي اتصال على روحي» / «ذكرني الساعة ٥ اتصل على أبوي»: في الوقت يطلع إشعار
      * فيه «اتصل» و«إلغاء». [delaySeconds] بعد كم ثانية، أو [atMinutes] الساعة كم (دقائق من منتصف الليل).
      */
-    data class CallLater(val contactNames: List<String>, val delaySeconds: Int? = null, val atMinutes: Int? = null) : Command
+    data class CallLater(
+        val contactNames: List<String>,
+        val delaySeconds: Int? = null,
+        val atMinutes: Int? = null,
+        /** «عشان الغداء»: يطلع في الإشعار. */
+        val note: String = "",
+    ) : Command
 
     /**
      * تذكير من مرسال نفسه: [fullScreen] = شاشة كاملة تطلع على الجهاز (مع تأجيل)، وإلا إشعار فوق.

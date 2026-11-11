@@ -32,4 +32,13 @@ class CallLaterTest {
         assertTrue(p("اتصل على خالد") is Command.Call)
         assertTrue(p("ذكرني الساعة 5 اشتري خبز") is Command.Device)
     }
+
+    @Test fun callReminderWordings() {
+        assertEquals(Command.CallLater(listOf("حسن الجنوبي"), atMinutes = 19 * 60), p("لا ذكرني أتصل على حسن الجنوبي الساعة 7 المسا"))
+        assertEquals(Command.CallLater(listOf("أمي"), atMinutes = 19 * 60, note = "عشان الغداء"),
+            p("ذكرني أكلم أمي الساعة 7 المسا عشان الغداء وأتصل عليها"))
+        assertEquals(Command.CallLater(listOf("امي"), atMinutes = 19 * 60), p("ذكرني الساعة 7 المسا اكلم امي"))
+        assertEquals(Command.CallLater(listOf("ابوي"), delaySeconds = 3600), p("ذكرني ادق على ابوي بعد ساعة"))
+        assertTrue(p("ابي اكلم خالد") is Command.Call)
+    }
 }
