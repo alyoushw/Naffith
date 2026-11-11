@@ -97,6 +97,11 @@ class DeviceController(private val context: Context) {
             .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
         if (label.isNotBlank()) intent.putExtra(AlarmClock.EXTRA_MESSAGE, label)
         if (!start(intent)) return Result(s(R.string.cannot_open))
+        // تذكير: إشعار فيه عد تنازلي لين وقته (إذا اليوم).
+        if (label.isNotBlank()) {
+            val at = CallReminder.timeFor(null, minutesOfDay)
+            CallReminder.countdown(context, CallReminder.idFor(at, label), "⏰ $label", at)
+        }
         val time = String.format(Locale("ar"), "%d:%02d %s", if (hour % 12 == 0) 12 else hour % 12, minute, if (hour < 12) "الصبح" else "المسا")
         return Result(if (label.isBlank()) s(R.string.dev_alarm_set, time) else s(R.string.dev_reminder_set, label, time))
     }

@@ -13,6 +13,8 @@
     <!-- الاتصال المجهّز («بعد دقيقة جهز لي اتصال») لازم يطلع في وقته بالضبط -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- أندرويد ١٦: العد التنازلي يطلع فوق في الشريط (Live Update / Now Bar) -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
     <!-- التحكم في الجوال: المنبه والمؤقت، وعدم الإزعاج/الصامت، وتعديل الإضاءة (يوافق عليه المستخدم مرة). -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />

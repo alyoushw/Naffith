@@ -318,4 +318,10 @@
     <string name="call_later_cancel">إلغاء</string>
     <string name="call_later_set">بجهّز لك اتصال على %1$s %2$s</string>
     <string name="call_later_no_notif">أحتاج إذن الإشعارات عشان أطلع لك الاتصال في وقته.</string>
+    <string name="countdown_channel">العد التنازلي للتذكيرات</string>
+    <string name="countdown_call">📞 اتصال على %1$s</string>
+    <string name="countdown_at">الساعة %1$s</string>
+    <string name="countdown_sub">باقي</string>
+    <string name="countdown_call_now">اتصل الحين</string>
+    <string name="countdown_hide">إخفاء</string>
 </resources>

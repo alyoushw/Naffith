@@ -23,6 +23,9 @@ import java.util.Calendar
 object CallReminder {
 
     private const val CHANNEL = "call_reminders"
+    private const val CHANNEL_COUNTDOWN = "countdown"
+    /** أندرويد ١٦ (وشريط Now Bar في سامسونج): نطلب يطلع الإشعار كـ«تحديث مباشر» فوق في الشريط. */
+    private const val EXTRA_PROMOTED = "android.requestPromotedOngoing"
     const val EXTRA_NAME = "name"
     const val EXTRA_NUMBER = "number"
     const val EXTRA_ID = "id"
@@ -31,7 +34,30 @@ object CallReminder {
 
     /** يرجع وقت التنفيذ بالمللي ثانية. */
     fun schedule(context: Context, name: String, number: String, delaySeconds: Int?, atMinutes: Int?): Long {
-        val at = when {
+        val at = timeFor(delaySeconds, atMinutes)
+        val id = idFor(at, number)
+        val pi = firePending(context, id, name, number)
+        val am = context.getSystemService(AlarmManager::class.java)
+        val exact = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
+        if (exact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+        else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+        countdown(context, id, context.getString(R.string.countdown_call, name), at, number)
+        return at
+    }
+
+    private fun firePending(context: Context, id: Int, name: String, number: String): PendingIntent =
+        PendingIntent.getBroadcast(
+            context, id,
+            Intent(context, CallReminderReceiver::class.java).setAction(ACTION_FIRE)
+                .putExtra(EXTRA_NAME, name).putExtra(EXTRA_NUMBER, number).putExtra(EXTRA_ID, id),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    fun idFor(at: Long, key: String) = (at / 1000 % 100000).toInt() + key.hashCode() % 1000
+
+    /** وقت التنفيذ بالمللي ثانية: بعد كذا ثانية، أو الساعة كذا (اليوم أو بكرة). */
+    fun timeFor(delaySeconds: Int?, atMinutes: Int?): Long =
+        when {
             delaySeconds != null -> System.currentTimeMillis() + delaySeconds * 1000L
             else -> Calendar.getInstance().apply {
                 set(Calendar.HOUR_OF_DAY, (atMinutes ?: 0) / 60)
@@ -41,18 +67,69 @@ object CallReminder {
                 if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
             }.timeInMillis
         }
-        val id = (at / 1000 % 100000).toInt() + number.hashCode() % 1000
-        val pi = PendingIntent.getBroadcast(
+
+    /** نفس اليوم (أو خلال ٣ ساعات حتى لو بعد نص الليل). */
+    private fun isSoon(at: Long): Boolean {
+        val now = Calendar.getInstance()
+        val then = Calendar.getInstance().apply { timeInMillis = at }
+        val sameDay = now.get(Calendar.YEAR) == then.get(Calendar.YEAR) &&
+            now.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR)
+        return sameDay || at - System.currentTimeMillis() <= 3 * 60 * 60 * 1000L
+    }
+
+    private fun canNotify(context: Context) = Build.VERSION.SDK_INT < 33 ||
+        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * إشعار ثابت في صفحة الإشعارات فيه عد تنازلي لين وقت التذكير (زي الـDynamic Island).
+     * للاتصال: لما يجي الوقت ينستبدل بإشعار «اتصل / إلغاء». للتذكير العادي: يختفي في وقته
+     * (المنبه نفسه يرن من تطبيق الساعة).
+     */
+    fun countdown(context: Context, id: Int, title: String, at: Long, callNumber: String? = null) {
+        if (!isSoon(at) || at <= System.currentTimeMillis() || !canNotify(context)) return
+        val nm = context.getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= 26) {
+            nm.createNotificationChannel(
+                NotificationChannel(CHANNEL_COUNTDOWN, context.getString(R.string.countdown_channel), NotificationManager.IMPORTANCE_DEFAULT)
+                    .apply { setSound(null, null); enableVibration(false); setShowBadge(false) }
+            )
+        }
+        val time = String.format(java.util.Locale("ar"), "%tl:%<tM %s", at, if (Calendar.getInstance().apply { timeInMillis = at }.get(Calendar.HOUR_OF_DAY) < 12) "الصبح" else "المسا")
+        val cancel = PendingIntent.getBroadcast(
             context, id,
-            Intent(context, CallReminderReceiver::class.java).setAction(ACTION_FIRE)
-                .putExtra(EXTRA_NAME, name).putExtra(EXTRA_NUMBER, number).putExtra(EXTRA_ID, id),
+            Intent(context, CallReminderReceiver::class.java).setAction(ACTION_CANCEL).putExtra(EXTRA_ID, id),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val am = context.getSystemService(AlarmManager::class.java)
-        val exact = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
-        if (exact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-        else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-        return at
+        val b = NotificationCompat.Builder(context, CHANNEL_COUNTDOWN)
+            .setSmallIcon(R.drawable.ic_mic)
+            .setContentTitle(title)
+            .setContentText(context.getString(R.string.countdown_at, time))
+            .setSubText(context.getString(R.string.countdown_sub))
+            .setWhen(at)
+            .setShowWhen(true)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(true)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setTimeoutAfter(at - System.currentTimeMillis() + 5_000)
+            .addExtras(Bundle().apply { putBoolean(EXTRA_PROMOTED, true) })
+        if (callNumber != null) {
+            val call = PendingIntent.getActivity(
+                context, id,
+                Intent(context, CallNowActivity::class.java)
+                    .putExtra(EXTRA_NUMBER, callNumber).putExtra(EXTRA_ID, id)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            b.addAction(0, context.getString(R.string.countdown_call_now), call)
+            b.addAction(0, context.getString(R.string.call_later_cancel), cancel)
+        } else {
+            b.addAction(0, context.getString(R.string.countdown_hide), cancel)
+        }
+        runCatching { nm.notify(id, b.build()) }
     }
 
     fun show(context: Context, name: String, number: String, id: Int) {
@@ -127,7 +204,15 @@ class CallReminderReceiver : BroadcastReceiver() {
                 intent.getStringExtra(CallReminder.EXTRA_NUMBER).orEmpty(),
                 id
             )
-            CallReminder.ACTION_CANCEL -> context.getSystemService(NotificationManager::class.java).cancel(id)
+            CallReminder.ACTION_CANCEL -> {
+                context.getSystemService(NotificationManager::class.java).cancel(id)
+                // «إلغاء» قبل الوقت: نلغي الاتصال المجهّز نفسه بعد.
+                PendingIntent.getBroadcast(
+                    context, id,
+                    Intent(context, CallReminderReceiver::class.java).setAction(CallReminder.ACTION_FIRE),
+                    PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+                )?.let { context.getSystemService(AlarmManager::class.java).cancel(it); it.cancel() }
+            }
         }
     }
 }
