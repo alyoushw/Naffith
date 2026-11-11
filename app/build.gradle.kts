@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.naffith.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.naffith.app"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         // رقم البناء في GitHub Actions يكبر مع كل بناء، عشان كل نسخة تحدّث اللي قبلها.
         val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionCode = buildNumber

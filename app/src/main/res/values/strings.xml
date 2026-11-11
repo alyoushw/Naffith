@@ -324,4 +324,7 @@
     <string name="countdown_sub">باقي</string>
     <string name="countdown_call_now">اتصل الحين</string>
     <string name="countdown_hide">إخفاء</string>
+    <string name="live_ask_title">تبي العد التنازلي في Now Bar؟</string>
+    <string name="live_ask_text">فعّل «الإشعارات المباشرة» لمرسال عشان يطلع العد التنازلي فوق في الشريط، وفي Now Bar على شاشة القفل.</string>
+    <string name="live_ask_enable">فعّلها</string>
 </resources>

@@ -129,8 +129,50 @@ object CallReminder {
         } else {
             b.addAction(0, context.getString(R.string.countdown_hide), cancel)
         }
-        runCatching { nm.notify(id, b.build()) }
+        var n = b.build()
+        if (Build.VERSION.SDK_INT >= 36) {
+            // أندرويد ١٦ / One UI 8: «إشعار مباشر» (فوق في الشريط وفي Now Bar).
+            n = runCatching {
+                android.app.Notification.Builder.recoverBuilder(context, n).setRequestPromotedOngoing(true).build()
+            }.getOrDefault(n)
+            askForLiveNotifications(context, nm)
+        }
+        runCatching { nm.notify(id, n) }
     }
+
+    /** إذا «الإشعارات المباشرة» مقفلة لمرسال: إشعار يوديك لمكان تفعيلها (مرة كل يومين بالكثير). */
+    private fun askForLiveNotifications(context: Context, nm: NotificationManager) {
+        if (Build.VERSION.SDK_INT < 36 || nm.canPostPromotedNotifications()) return
+        val prefs = context.getSharedPreferences("live_notifications", Context.MODE_PRIVATE)
+        if (System.currentTimeMillis() - prefs.getLong("asked_at", 0) < 2 * 24 * 60 * 60 * 1000L) return
+        prefs.edit().putLong("asked_at", System.currentTimeMillis()).apply()
+        val open = PendingIntent.getActivity(
+            context, 9001, liveSettingsIntent(context),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val ask = NotificationCompat.Builder(context, CHANNEL_COUNTDOWN)
+            .setSmallIcon(R.drawable.ic_mic)
+            .setContentTitle(context.getString(R.string.live_ask_title))
+            .setContentText(context.getString(R.string.live_ask_text))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.live_ask_text)))
+            .setContentIntent(open)
+            .addAction(0, context.getString(R.string.live_ask_enable), open)
+            .setAutoCancel(true)
+            .build()
+        runCatching { nm.notify(9001, ask) }
+    }
+
+    /** صفحة «الإشعارات المباشرة» لمرسال (أو إعدادات إشعاراته). */
+    fun liveSettingsIntent(context: Context): Intent =
+        if (Build.VERSION.SDK_INT >= 36) {
+            Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        } else {
+            Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
 
     fun show(context: Context, name: String, number: String, id: Int) {
         val nm = context.getSystemService(NotificationManager::class.java)
