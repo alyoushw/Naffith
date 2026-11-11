@@ -772,6 +772,8 @@ open class MainActivity : AppCompatActivity() {
 
             is Command.Sequence -> runSequence(command.steps)
 
+            is Command.Remind -> scheduleReminder(command)
+
             is Command.CallLater ->
                 if (command.contactNames.isEmpty()) {
                     askFollowUp(getString(R.string.ask_call_name)) { command.copy(contactNames = CommandParser.parseName(it)) }
@@ -789,6 +791,55 @@ open class MainActivity : AppCompatActivity() {
             // مو أمر؟ سؤال أو سالفة: يجاوبه Gemini (داخل مرسال أو تطبيقه) أو Google، حسب الإعدادات.
             is Command.Unknown -> answerQuestion(command.heard)
         }
+    }
+
+    private var reminderDialog: androidx.appcompat.app.AlertDialog? = null
+
+    /** «ذكرني …»: خيارين، إشعار فوق أو شاشة كاملة. يرد بالصوت أو يضغط. */
+    private fun askReminderMode(label: String, atMinutes: Int) {
+        val options = arrayOf(getString(R.string.rem_mode_notif), getString(R.string.rem_mode_full))
+        reminderDialog = MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.rem_mode_title, label))
+            .setItems(options) { _, which ->
+                stopListeningNow()
+                execute(Command.Remind(label, atMinutes, fullScreen = which == 1))
+            }
+            .setNegativeButton(R.string.cancel) { _, _ -> stopListeningNow(); setStatus(getString(R.string.status_ready)) }
+            .show()
+        askFollowUp(getString(R.string.rem_mode_ask)) { answer ->
+            Command.Remind(label, atMinutes, fullScreen = com.naffith.app.core.ReminderMode.parse(answer) ?: false)
+        }
+    }
+
+    private fun scheduleReminder(command: Command.Remind) {
+        reminderDialog?.dismiss()
+        reminderDialog = null
+        val doIt = {
+            Reminders.scheduleAt(applicationContext, command.label, command.atMinutes, command.fullScreen)
+            val time = CallReminder.describe(null, command.atMinutes)
+            val msg = getString(
+                if (command.fullScreen) R.string.rem_set_full else R.string.rem_set_notif, command.label, time
+            )
+            setStatus(msg)
+            orb?.state = VoiceOrbView.State.IDLE
+            if (command.fullScreen && !Reminders.canShowFullScreen(this)) {
+                // أندرويد ١٤: الشاشة الكاملة تحتاج إذن (أو خدمة مرسال في إمكانية الوصول).
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.rem_full_perm_title)
+                    .setMessage(R.string.rem_full_perm_text)
+                    .setPositiveButton(R.string.open_settings) { _, _ ->
+                        runCatching { startActivity(Reminders.fullScreenSettings(this)) }
+                    }
+                    .setNegativeButton(R.string.cancel, null)
+                    .show()
+            } else if (isPopup) {
+                if (voiceMode && VoicePrefs.speakReplies(this)) say(msg) { if (!isFinishing) finish() }
+                else micButton.postDelayed({ if (!isFinishing) finish() }, 2200)
+            } else if (voiceMode && VoicePrefs.speakReplies(this)) say(msg)
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            withPermission(Manifest.permission.POST_NOTIFICATIONS, onDenied = { setStatus(getString(R.string.call_later_no_notif)) }) { doIt() }
+        } else doIt()
     }
 
     /** نجهّز إشعار «اتصل / إلغاء» في الوقت اللي قاله. */
@@ -979,6 +1030,11 @@ open class MainActivity : AppCompatActivity() {
 
     /** التحكم في الجوال: منبه، صوت، إضاءة، كشاف… ونرد بجملة قصيرة. */
     private fun runDevice(command: Command.Device) {
+        // «ذكرني …»: نسأل إشعار ولا شاشة كاملة.
+        if (command.action == com.naffith.app.core.DeviceAction.ALARM && command.label.isNotBlank() && command.value != null) {
+            askReminderMode(command.label, command.value)
+            return
+        }
         val app = applicationContext
         // القفل ولقطة الشاشة: نسكّر النافذة أول عشان ما تطلع في الصورة.
         if (command.action == com.naffith.app.core.DeviceAction.SCREENSHOT ||

@@ -54,6 +54,12 @@ sealed interface Command {
      */
     data class CallLater(val contactNames: List<String>, val delaySeconds: Int? = null, val atMinutes: Int? = null) : Command
 
+    /**
+     * تذكير من مرسال نفسه: [fullScreen] = شاشة كاملة تطلع على الجهاز (مع تأجيل)، وإلا إشعار فوق.
+     * [atMinutes] الوقت بالدقائق من منتصف الليل.
+     */
+    data class Remind(val label: String, val atMinutes: Int, val fullScreen: Boolean) : Command
+
     /** أمر غير مفهوم، مع النص الذي سُمع. */
     data class Unknown(val heard: String) : Command
 }

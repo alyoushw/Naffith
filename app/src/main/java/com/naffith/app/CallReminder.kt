@@ -85,7 +85,7 @@ object CallReminder {
      * للاتصال: لما يجي الوقت ينستبدل بإشعار «اتصل / إلغاء». للتذكير العادي: يختفي في وقته
      * (المنبه نفسه يرن من تطبيق الساعة).
      */
-    fun countdown(context: Context, id: Int, title: String, at: Long, callNumber: String? = null) {
+    fun countdown(context: Context, id: Int, title: String, at: Long, callNumber: String? = null, cancel: PendingIntent? = null) {
         if (!isSoon(at) || at <= System.currentTimeMillis() || !canNotify(context)) return
         val nm = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
@@ -95,7 +95,7 @@ object CallReminder {
             )
         }
         val time = String.format(java.util.Locale("ar"), "%tl:%<tM %s", at, if (Calendar.getInstance().apply { timeInMillis = at }.get(Calendar.HOUR_OF_DAY) < 12) "الصبح" else "المسا")
-        val cancel = PendingIntent.getBroadcast(
+        val cancel = cancel ?: PendingIntent.getBroadcast(
             context, id,
             Intent(context, CallReminderReceiver::class.java).setAction(ACTION_CANCEL).putExtra(EXTRA_ID, id),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -130,7 +130,7 @@ object CallReminder {
             b.addAction(0, context.getString(R.string.countdown_call_now), call)
             b.addAction(0, context.getString(R.string.call_later_cancel), cancel)
         } else {
-            b.addAction(0, context.getString(R.string.countdown_hide), cancel)
+            b.addAction(0, context.getString(R.string.rem_cancel), cancel)
         }
         if (!live) {
             val base = android.os.SystemClock.elapsedRealtime() + (at - System.currentTimeMillis())

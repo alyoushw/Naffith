@@ -13,6 +13,9 @@
     <!-- الاتصال المجهّز («بعد دقيقة جهز لي اتصال») لازم يطلع في وقته بالضبط -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- التذكير بشاشة كاملة -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- أندرويد ١٦: العد التنازلي يطلع فوق في الشريط (Live Update / Now Bar) -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
@@ -169,6 +172,16 @@
             ضغطة مطوّلة على زر التشغيل تفتح نافذة مرسال، بدون ما يبقى المايك شغال.
         -->
         <receiver android:name=".CallReminderReceiver" android:exported="false" />
+        <receiver android:name=".ReminderReceiver" android:exported="false" />
+        <activity
+            android:name=".ReminderAlertActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:showWhenLocked="true"
+            android:taskAffinity=""
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.Naffith" />
         <activity
             android:name=".CallNowActivity"
             android:exported="false"

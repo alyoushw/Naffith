@@ -327,4 +327,23 @@
     <string name="live_ask_title">تبي العد التنازلي في Now Bar؟</string>
     <string name="live_ask_text">فعّل «الإشعارات المباشرة» لمرسال عشان يطلع العد التنازلي فوق في الشريط، وفي Now Bar على شاشة القفل.</string>
     <string name="live_ask_enable">فعّلها</string>
+    <string name="rem_mode_title">تذكير «%1$s»: كيف أذكّرك؟</string>
+    <string name="rem_mode_ask">إشعار ولا شاشة كاملة؟</string>
+    <string name="rem_mode_notif">🔔 إشعار فوق</string>
+    <string name="rem_mode_full">📱 شاشة كاملة (مع تأجيل)</string>
+    <string name="rem_set_notif">بذكّرك «%1$s» %2$s بإشعار</string>
+    <string name="rem_set_full">بذكّرك «%1$s» %2$s بشاشة كاملة</string>
+    <string name="rem_full_perm_title">اسمح بالشاشة الكاملة</string>
+    <string name="rem_full_perm_text">عشان يطلع التذكير على الشاشة كاملة، فعّل لمرسال «إظهار إشعارات بملء الشاشة». (أو فعّل خدمة مرسال في إمكانية الوصول.) التذكير انحفظ، وإذا ما فعّلت يطلع كإشعار.</string>
+    <string name="rem_channel">التذكيرات</string>
+    <string name="rem_channel_full">التذكيرات (شاشة كاملة)</string>
+    <string name="rem_now">حان وقت التذكير</string>
+    <string name="rem_done">✓ تم</string>
+    <string name="rem_cancel">إلغاء التذكير</string>
+    <string name="rem_snooze_n">أجّل %1$d دقايق</string>
+    <string name="rem_title">تذكير</string>
+    <string name="rem_snooze_title">أجّل:</string>
+    <string name="rem_minutes">%1$d د</string>
+    <string name="rem_hour">ساعة</string>
+    <string name="rem_snoozed">بذكّرك بعد %1$d دقيقة</string>
 </resources>
