@@ -36,6 +36,16 @@ class WhatsAppSendService : AccessibilityService() {
             pendingUntil = 0L
         }
 
+        /** «اتصل على المحل»: لما تفتح صفحة المحل في خرائط Google نضغط «اتصال» (خلال ٢٠ ثانية). */
+        @Volatile
+        private var mapsCallUntil = 0L
+        private const val MAPS = "com.google.android.apps.maps"
+        private val CALL_LABELS = setOf("اتصال", "الاتصال", "call", "اتصل")
+
+        fun requestMapsCall() {
+            mapsCallUntil = SystemClock.elapsedRealtime() + 20_000L
+        }
+
         fun isEnabled(context: Context): Boolean {
             val enabled = Settings.Secure.getString(
                 context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
@@ -60,6 +70,12 @@ class WhatsAppSendService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // «اختصار بخطوات» يعرف متى الشاشة هدأت (خلصت تحميل) عشان يضغط على طول.
         Macro.lastUiChangeAt = SystemClock.uptimeMillis()
+        if (SystemClock.elapsedRealtime() <= mapsCallUntil && event?.packageName?.toString() == MAPS) {
+            rootInActiveWindow?.let { root -> findCallButton(root)?.let { b ->
+                if (b.performAction(AccessibilityNodeInfo.ACTION_CLICK)) mapsCallUntil = 0L
+            } }
+            return
+        }
         if (SystemClock.elapsedRealtime() > pendingUntil) return
         // الخدمة تشوف كل التطبيقات، بس زر الإرسال نضغطه في واتساب بس.
         val pkg = event?.packageName?.toString() ?: return
@@ -80,6 +96,28 @@ class WhatsAppSendService : AccessibilityService() {
             root.findAccessibilityNodeInfosByText(label)
                 ?.firstOrNull { it.contentDescription?.toString()?.lowercase() == label && it.isClickable }
                 ?.let { return it }
+        }
+        return null
+    }
+
+    /** زر «اتصال» في صفحة المحل (النص نفسه «اتصال»، مو اسم محل فيه «اتصالات»). */
+    private fun findCallButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val seen = ArrayDeque<AccessibilityNodeInfo>().apply { add(root) }
+        var count = 0
+        while (seen.isNotEmpty() && count < 600) {
+            val n = seen.removeFirst()
+            count++
+            val text = n.text?.toString()?.trim()?.lowercase().orEmpty()
+            val desc = n.contentDescription?.toString()?.trim()?.lowercase().orEmpty()
+            val isCall = text in CALL_LABELS || desc in CALL_LABELS ||
+                CALL_LABELS.any { desc.startsWith("$it ") && desc.length < 40 }
+            if (isCall && n.isVisibleToUser) {
+                var c: AccessibilityNodeInfo? = n
+                var up = 0
+                while (c != null && !c.isClickable && up < 4) { c = c.parent; up++ }
+                if (c != null && c.isClickable) return c
+            }
+            for (i in 0 until n.childCount) n.getChild(i)?.let { seen.add(it) }
         }
         return null
     }

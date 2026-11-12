@@ -751,6 +751,13 @@ open class MainActivity : AppCompatActivity() {
     /** «اتصل على العبير للاتصالات»: نلقى رقم المكان، ونتأكد منك قبل الاتصال. */
     private fun callPlace(place: String) {
         SmartIntent.remember("اتصال على محل/مكان: $place")
+        // الأضمن: نفتح المحل في خرائط Google ونضغط «اتصال» من صفحته (الرقم الصحيح من Google نفسه).
+        if (WhatsAppSendService.isEnabled(this) && launcher.isInstalled("com.google.android.apps.maps")) {
+            WhatsAppSendService.requestMapsCall()
+            setStatus(getString(R.string.place_call_via_maps, place))
+            launcher.openMaps(place)
+            return
+        }
         if (GeminiClient.apiKey(this).isBlank()) {
             // بدون مفتاح Gemini ما نقدر ندوّر الرقم: نفتح المحل في الخرائط وتتصل من صفحته.
             execute(Command.OpenMaps(place))

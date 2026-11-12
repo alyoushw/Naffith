@@ -148,7 +148,7 @@ class AppLauncher(
     fun dial(number: String): Boolean =
         start(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null)))
 
-    private fun isInstalled(pkg: String): Boolean = try {
+    fun isInstalled(pkg: String): Boolean = try {
         context.packageManager.getPackageInfo(pkg, 0)
         true
     } catch (_: PackageManager.NameNotFoundException) {

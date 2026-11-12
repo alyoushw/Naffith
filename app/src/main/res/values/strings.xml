@@ -386,4 +386,5 @@
     <string name="search_as_place">دوّره كمحل</string>
     <string name="smart_failed">⚠️ الفهم الذكي ما اشتغل (%1$s)</string>
     <string name="smart_no_key">⚠️ الفهم الذكي واقف: ما فيه مفتاح Gemini في الإعدادات</string>
+    <string name="place_call_via_maps">أفتح «%1$s» في الخرائط وأضغط «اتصال»…</string>
 </resources>
