@@ -31,6 +31,7 @@ import com.naffith.app.core.ContactMatcher
 import com.naffith.app.core.MatchResult
 import com.naffith.app.core.Places
 import com.naffith.app.core.ScreenWords
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 /**
@@ -673,12 +674,13 @@ open class MainActivity : AppCompatActivity() {
             CommandParser.parseBest(alternatives)
         }
         transcriptText.text = getString(R.string.heard_format, heard)
-        // بدون مفتاح Gemini الفهم الذكي واقف: نقولها بدل ما نمشي بصمت.
-        if (pending == null && !isInstant(command) && GeminiClient.apiKey(this).isBlank()) {
-            transcriptText.text = getString(R.string.heard_format, heard) + "\n" + getString(R.string.smart_no_key)
-        }
-        // العقل: Gemini يفهم الكلام الحر. القواعد تبقى للأوامر الفورية وللاحتياط بدون نت/مفتاح.
-        if (pending == null && !isInstant(command) && GeminiClient.apiKey(this).isNotBlank()) {
+        // السريع أول: اللي فهمته القواعد يتنفذ على طول. Gemini يدخل لما القواعد ما تفهم، أو لما
+        // التنفيذ يتعثر (اسم أو تطبيق ما لقيناه = غالباً فهمنا غلط) فيعيد فهم الجملة.
+        val hasKey = GeminiClient.apiKey(this).isNotBlank()
+        rescue = if (pending == null && hasKey) alternatives.filter { it.isNotBlank() } else null
+        rescueHeard = heard
+        if (pending == null && hasKey && command is Command.Unknown) {
+            rescue = null
             smartHandle(alternatives.filter { it.isNotBlank() }, heard, command)
             return
         }
@@ -688,11 +690,35 @@ open class MainActivity : AppCompatActivity() {
         execute(command)
     }
 
-    /** أوامر التحكم البسيطة («ارفع الصوت»، «شغل الكشاف») تتنفذ فوراً بدون ما نستنى Gemini. */
-    private fun isInstant(command: Command): Boolean = when (command) {
-        is Command.Device -> command.label.isBlank()
-        is Command.Sequence -> command.steps.all { it is Command.Device && it.label.isBlank() }
-        else -> false
+    /** احتمالات آخر جملة: لو التنفيذ تعثّر نعطيها Gemini يعيد فهمها (مرة وحدة). */
+    private var rescue: List<String>? = null
+    private var rescueHeard = ""
+
+    /** التنفيذ تعثّر (ما لقينا الاسم/التطبيق): Gemini يعيد فهم الجملة. يرجع false إذا ما فيه إنقاذ. */
+    private fun trySmartRescue(otherwise: () -> Unit): Boolean {
+        val alts = rescue ?: return false
+        rescue = null
+        setStatus(getString(R.string.smart_thinking))
+        orb?.state = VoiceOrbView.State.THINKING
+        lifecycleScope.launch {
+            val got = understandQuick(alts)
+            orb?.state = VoiceOrbView.State.IDLE
+            if (isFinishing) return@launch
+            if (got == null || got.isQuestion) {
+                otherwise()
+            } else {
+                transcriptText.text = getString(R.string.heard_format, got.text) + "\n→ " + got.summary
+                execute(if (got.commands.size == 1) got.commands.first() else Command.Sequence(got.commands))
+            }
+        }
+        return true
+    }
+
+    /** طلب الفهم بمهلة حقيقية (٧ ثواني): لو تأخر نكمل بدون ما نعلّق المستخدم. */
+    private suspend fun understandQuick(alts: List<String>): SmartIntent.Understood? {
+        val now = java.util.Calendar.getInstance().let { it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE) }
+        val job = lifecycleScope.async(kotlinx.coroutines.Dispatchers.IO) { SmartIntent.understand(applicationContext, alts, now) }
+        return kotlinx.coroutines.withTimeoutOrNull(7_000) { job.await() }
     }
 
     /** Gemini يفهم وش يقصد وننفّذ. لو ما رد (نت/مهلة): نرجع لفهم القواعد. */
@@ -700,16 +726,14 @@ open class MainActivity : AppCompatActivity() {
         setStatus(getString(R.string.smart_thinking))
         orb?.state = VoiceOrbView.State.THINKING
         lifecycleScope.launch {
-            val now = java.util.Calendar.getInstance().let { it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE) }
-            val got = kotlinx.coroutines.withTimeoutOrNull(9_000) { SmartIntent.understand(this@MainActivity, alternatives, now) }
+            val got = understandQuick(alternatives)
             orb?.state = VoiceOrbView.State.IDLE
             if (isFinishing) return@launch
             when {
                 got == null -> {
                     // ما نفشل بصمت: نبيّن إن الفهم الذكي ما اشتغل وليش، وننفّذ بفهم القواعد.
-                    val why = SmartIntent.lastError.ifBlank { "ما رد في الوقت" }
+                    val why = SmartIntent.lastError.ifBlank { "تأخر الرد" }
                     transcriptText.text = getString(R.string.heard_format, heard) + "\n" + getString(R.string.smart_failed, why)
-                    Toast.makeText(this@MainActivity, getString(R.string.smart_failed, why), Toast.LENGTH_LONG).show()
                     if (original !is Command.Unknown) { showAnswer(null); remember(heard) }
                     execute(original)
                 }
@@ -745,7 +769,8 @@ open class MainActivity : AppCompatActivity() {
             }.getOrNull()
         } else null
         lifecycleScope.launch {
-            val phone = SmartIntent.findPhone(this@MainActivity, place, near)
+            val lookup = lifecycleScope.async(kotlinx.coroutines.Dispatchers.IO) { SmartIntent.findPhone(applicationContext, place, near) }
+            val phone = kotlinx.coroutines.withTimeoutOrNull(15_000) { lookup.await() }
             orb?.state = VoiceOrbView.State.IDLE
             if (isFinishing) return@launch
             if (phone == null) {
@@ -1363,7 +1388,8 @@ open class MainActivity : AppCompatActivity() {
         val resolver = AppResolver(this)
         val resolved = resolver.resolve(command.appName)
         if (resolved == null) {
-            chooseApp(resolver, command)
+            // ما لقينا تطبيق بهالاسم: يمكن ما كان يقصد تطبيق. Gemini يعيد فهم الجملة أول.
+            if (!trySmartRescue { chooseApp(resolver, command) }) chooseApp(resolver, command)
             return
         }
         launchResolved(resolver, resolved, command)
@@ -1603,12 +1629,16 @@ open class MainActivity : AppCompatActivity() {
                     is MatchResult.Multiple ->
                         chooseContact(getString(R.string.choose_contact), result.matches.map { it.contact }, names.first(), onContact)
                     MatchResult.None -> {
-                        val suggestions = ContactMatcher.suggestions(names, contacts)
-                        if (suggestions.isEmpty()) contactNotFound(names.first(), retry)
-                        else chooseContact(
-                            getString(R.string.contact_not_found_suggest, names.first()),
-                            suggestions, names.first(), onContact, retry
-                        )
+                        val showNotFound = {
+                            val suggestions = ContactMatcher.suggestions(names, contacts)
+                            if (suggestions.isEmpty()) contactNotFound(names.first(), retry)
+                            else chooseContact(
+                                getString(R.string.contact_not_found_suggest, names.first()),
+                                suggestions, names.first(), onContact, retry
+                            )
+                        }
+                        // ما لقينا الاسم: غالباً فهمنا الجملة غلط. Gemini يعيد فهمها قبل ما نقول «ما لقيت».
+                        if (!trySmartRescue(showNotFound)) showNotFound()
                     }
                 }
             }

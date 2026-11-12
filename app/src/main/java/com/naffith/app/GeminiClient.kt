@@ -130,17 +130,19 @@ object GeminiClient {
      * يرسل الطلب لـ Gemini. إذا الموديل مضغوط (503) أو خلص حده (429) أو مو موجود (404)، نجرّب
      * موديل ثاني تلقائياً، وكل موديل نعطيه محاولتين.
      */
-    private fun generate(context: Context, key: String, body: String, raw: Boolean = false): String {
-        val models = (listOf(model(context)) + FALLBACK_MODELS).distinct()
+    private fun generate(context: Context, key: String, body: String, raw: Boolean = false, quick: Boolean = false): String {
+        // السريع (فهم الأوامر): الموديل الخفيف أول، محاولة وحدة لكل موديل، ومهلة قصيرة.
+        val models = if (quick) (listOf("gemini-flash-lite-latest", "gemini-2.5-flash-lite", model(context))).distinct()
+        else (listOf(model(context)) + FALLBACK_MODELS).distinct()
         var lastError: ChatError? = null
         for (m in models) {
             val url = URL(
                 "https://generativelanguage.googleapis.com/v1beta/models/" +
                     URLEncoder.encode(m, "UTF-8") + ":generateContent"
             )
-            for (attempt in 0 until 2) {
+            for (attempt in 0 until (if (quick) 1 else 2)) {
                 try {
-                    return send(url, key, body, raw)
+                    return send(url, key, body, raw, quick)
                 } catch (e: ChatError) {
                     lastError = e
                     if (e.code !in RETRYABLE) throw e
@@ -177,11 +179,11 @@ object GeminiClient {
                 }
                 if (!fast) return@runCatching generate(context, key, body(false), raw = true)
                 try {
-                    generate(context, key, body(true), raw = true)
+                    generate(context, key, body(true), raw = true, quick = true)
                 } catch (e: ChatError) {
-                    // موديل ما يقبل إيقاف التفكير (أو رد فاضي): نعيد بدونه. مفتاح غلط/حد منتهي ما تنفع معه الإعادة.
-                    if (e.code == 401 || e.code == 403 || e.code == 429) throw e
-                    generate(context, key, body(false), raw = true)
+                    // موديل ما يقبل إيقاف التفكير: نعيد بدونه (مرة وحدة).
+                    if (e.code != 400) throw e
+                    generate(context, key, body(false), raw = true, quick = true)
                 }
             }
         }
@@ -220,11 +222,11 @@ object GeminiClient {
         }
     }
 
-    private fun send(url: URL, key: String, body: String, raw: Boolean = false): String {
+    private fun send(url: URL, key: String, body: String, raw: Boolean = false, quick: Boolean = false): String {
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 10_000
-            readTimeout = 45_000
+            connectTimeout = if (quick) 3_000 else 10_000
+            readTimeout = if (quick) 6_000 else 45_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("x-goog-api-key", key)
