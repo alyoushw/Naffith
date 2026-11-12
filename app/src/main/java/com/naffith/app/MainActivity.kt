@@ -673,6 +673,10 @@ open class MainActivity : AppCompatActivity() {
             CommandParser.parseBest(alternatives)
         }
         transcriptText.text = getString(R.string.heard_format, heard)
+        // بدون مفتاح Gemini الفهم الذكي واقف: نقولها بدل ما نمشي بصمت.
+        if (pending == null && !isInstant(command) && GeminiClient.apiKey(this).isBlank()) {
+            transcriptText.text = getString(R.string.heard_format, heard) + "\n" + getString(R.string.smart_no_key)
+        }
         // العقل: Gemini يفهم الكلام الحر. القواعد تبقى للأوامر الفورية وللاحتياط بدون نت/مفتاح.
         if (pending == null && !isInstant(command) && GeminiClient.apiKey(this).isNotBlank()) {
             smartHandle(alternatives.filter { it.isNotBlank() }, heard, command)
@@ -702,6 +706,10 @@ open class MainActivity : AppCompatActivity() {
             if (isFinishing) return@launch
             when {
                 got == null -> {
+                    // ما نفشل بصمت: نبيّن إن الفهم الذكي ما اشتغل وليش، وننفّذ بفهم القواعد.
+                    val why = SmartIntent.lastError.ifBlank { "ما رد في الوقت" }
+                    transcriptText.text = getString(R.string.heard_format, heard) + "\n" + getString(R.string.smart_failed, why)
+                    Toast.makeText(this@MainActivity, getString(R.string.smart_failed, why), Toast.LENGTH_LONG).show()
                     if (original !is Command.Unknown) { showAnswer(null); remember(heard) }
                     execute(original)
                 }
@@ -743,6 +751,9 @@ open class MainActivity : AppCompatActivity() {
             if (phone == null) {
                 execute(Command.OpenMaps(place))
                 setStatus(getString(R.string.smart_no_phone, place))
+                if (SmartIntent.lastError.isNotBlank()) {
+                    Toast.makeText(this@MainActivity, getString(R.string.smart_failed, SmartIntent.lastError), Toast.LENGTH_LONG).show()
+                }
                 return@launch
             }
             val title = getString(R.string.smart_call_place_title, phone.name)

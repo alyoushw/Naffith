@@ -384,4 +384,6 @@
     <string name="smart_call">📞 اتصل</string>
     <string name="smart_open_maps">افتحه في الخرائط</string>
     <string name="search_as_place">دوّره كمحل</string>
+    <string name="smart_failed">⚠️ الفهم الذكي ما اشتغل (%1$s)</string>
+    <string name="smart_no_key">⚠️ الفهم الذكي واقف: ما فيه مفتاح Gemini في الإعدادات</string>
 </resources>

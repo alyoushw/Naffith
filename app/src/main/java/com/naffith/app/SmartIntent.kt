@@ -68,8 +68,20 @@ object SmartIntent {
     }
 
     /** يفهم كلام المستخدم الحر ويحوّله لأوامر. null = ما قدرنا (بدون نت/مفتاح/رد غلط). */
+    /** ليش ما اشتغل آخر طلب (نعرضه للمستخدم بدل ما نفشل بصمت). */
+    var lastError: String = ""
+        private set
+
+    private fun note(e: Throwable?): String = when (e) {
+        null -> ""
+        is GeminiClient.ChatError -> e.detail.ifBlank { "code ${e.code}" }
+        else -> e.javaClass.simpleName + (e.message?.let { ": " + it.take(80) } ?: "")
+    }
+
     suspend fun understand(context: Context, alternatives: List<String>, nowMinutes: Int): Understood? {
-        val raw = GeminiClient.ask(context, prompt(alternatives, nowMinutes), json = true, fast = true).getOrNull() ?: return null
+        lastError = ""
+        val res = GeminiClient.ask(context, prompt(alternatives, nowMinutes), json = true, fast = true)
+        val raw = res.getOrNull() ?: run { lastError = note(res.exceptionOrNull()); return null }
         return runCatching {
             val json = JSONObject(raw.substring(raw.indexOf('{'), raw.lastIndexOf('}') + 1))
             val text = json.optString("text").trim().ifBlank { alternatives.first() }
@@ -83,7 +95,7 @@ object SmartIntent {
                 labels += label(o)
             }
             Understood(commands, json.optString("kind") == "question" || commands.isEmpty(), text, labels.joinToString(" · "))
-        }.getOrNull()
+        }.onFailure { lastError = "رد غير مفهوم: " + raw.take(80) }.getOrNull()
     }
 
     private fun names(o: JSONObject, key: String = "contact"): List<String> =
@@ -164,11 +176,17 @@ object SmartIntent {
             appendLine("رد بسطر واحد فقط بهذا الشكل بالضبط: PHONE: <الرقم> | NAME: <اسم المكان الرسمي>")
             appendLine("إذا ما لقيت رقم مؤكد رد: PHONE: none")
         }
-        val raw = GeminiClient.ask(context, p, search = true).getOrNull() ?: return null
-        val phone = Regex("PHONE:\\s*([+0-9٠-٩][0-9٠-٩ \\-]{5,})", RegexOption.IGNORE_CASE).find(raw)?.groupValues?.get(1)
-            ?.filter { it.isDigit() || it == '+' }?.map { c -> if (c in '٠'..'٩') '0' + (c - '٠') else c }?.joinToString("")
-            ?: return null
-        val name = Regex("NAME:\\s*(.+)", RegexOption.IGNORE_CASE).find(raw)?.groupValues?.get(1)?.trim()?.trim('*', ' ')
+        lastError = ""
+        var res = GeminiClient.ask(context, p, search = true)
+        // البحث في Google مو متاح للمفتاح/الموديل؟ نجرّب من معرفة Gemini نفسه.
+        if (res.isFailure) res = GeminiClient.ask(context, p)
+        val raw = res.getOrNull() ?: run { lastError = note(res.exceptionOrNull()); return null }
+        // أول رقم شكله رقم هاتف في الرد (حتى لو Gemini نسّقه بنجوم أو مسافات).
+        val phone = Regex("[+0-9٠-٩][0-9٠-٩ \\-()]{6,}[0-9٠-٩]").findAll(raw)
+            .map { m -> m.value.filter { it.isDigit() || it == '+' }.map { c -> if (c in '٠'..'٩') '0' + (c - '٠') else c }.joinToString("") }
+            .firstOrNull { it.trimStart('+').length in 7..15 }
+            ?: run { lastError = "ما فيه رقم في الرد: " + raw.take(80); return null }
+        val name = Regex("NAME:\\**\\s*(.+)", RegexOption.IGNORE_CASE).find(raw)?.groupValues?.get(1)?.trim()?.trim('*', ' ', '|')
             ?.takeIf { it.isNotBlank() } ?: place
         return Phone(phone, name)
     }

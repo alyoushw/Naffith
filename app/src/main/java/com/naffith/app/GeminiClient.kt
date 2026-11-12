@@ -179,8 +179,9 @@ object GeminiClient {
                 try {
                     generate(context, key, body(true), raw = true)
                 } catch (e: ChatError) {
-                    // موديل ما يقبل إيقاف التفكير: نعيد بدونه.
-                    if (e.code == 400) generate(context, key, body(false), raw = true) else throw e
+                    // موديل ما يقبل إيقاف التفكير (أو رد فاضي): نعيد بدونه. مفتاح غلط/حد منتهي ما تنفع معه الإعادة.
+                    if (e.code == 401 || e.code == 403 || e.code == 429) throw e
+                    generate(context, key, body(false), raw = true)
                 }
             }
         }
