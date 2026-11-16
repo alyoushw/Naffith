@@ -136,6 +136,10 @@ class SettingsActivity : AppCompatActivity() {
                 )
             }
         }
+        findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.speakerSwitch).apply {
+            isChecked = VoicePrefs.alwaysSpeaker(this@SettingsActivity)
+            setOnCheckedChangeListener { _, checked -> VoicePrefs.setAlwaysSpeaker(this@SettingsActivity, checked) }
+        }
         findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.speakSwitch).apply {
             isChecked = VoicePrefs.speakReplies(this@SettingsActivity)
             setOnCheckedChangeListener { _, checked -> VoicePrefs.setSpeakReplies(this@SettingsActivity, checked) }

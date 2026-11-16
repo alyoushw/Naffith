@@ -46,6 +46,15 @@ class WhatsAppSendService : AccessibilityService() {
             mapsCallUntil = SystemClock.elapsedRealtime() + 20_000L
         }
 
+        /** احتياط للمكبر: إذا شاشة المكالمة طلعت والمكبر مطفي، نضغطه (خلال ١٥ ثانية). */
+        @Volatile
+        private var speakerUntil = 0L
+        private val SPEAKER_LABELS = listOf("مكبر الصوت", "مكبر", "السماعة الخارجية", "speaker")
+
+        fun requestSpeaker() {
+            speakerUntil = SystemClock.elapsedRealtime() + 15_000L
+        }
+
         fun isEnabled(context: Context): Boolean {
             val enabled = Settings.Secure.getString(
                 context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
@@ -70,6 +79,14 @@ class WhatsAppSendService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // «اختصار بخطوات» يعرف متى الشاشة هدأت (خلصت تحميل) عشان يضغط على طول.
         Macro.lastUiChangeAt = SystemClock.uptimeMillis()
+        val evPkg = event?.packageName?.toString().orEmpty()
+        if (SystemClock.elapsedRealtime() <= speakerUntil && (evPkg.contains("incallui") || evPkg.contains("dialer") || evPkg.contains("telecom"))) {
+            rootInActiveWindow?.let { root -> findSpeakerToggle(root) }?.let { b ->
+                // نضغط بس إذا نعرف إنه مطفي (ما نطفيه بالغلط لو أندرويد شغّله).
+                if (b.isChecked) speakerUntil = 0L
+                else if (b.performAction(AccessibilityNodeInfo.ACTION_CLICK)) speakerUntil = 0L
+            }
+        }
         if (SystemClock.elapsedRealtime() <= mapsCallUntil && event?.packageName?.toString() == MAPS) {
             rootInActiveWindow?.let { root -> findCallButton(root)?.let { b ->
                 if (b.performAction(AccessibilityNodeInfo.ACTION_CLICK)) mapsCallUntil = 0L
@@ -96,6 +113,20 @@ class WhatsAppSendService : AccessibilityService() {
             root.findAccessibilityNodeInfosByText(label)
                 ?.firstOrNull { it.contentDescription?.toString()?.lowercase() == label && it.isClickable }
                 ?.let { return it }
+        }
+        return null
+    }
+
+    /** زر «مكبر الصوت» في شاشة المكالمة، بشرط إنه زر تشغيل/إطفاء (عشان نعرف حالته). */
+    private fun findSpeakerToggle(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        for (label in SPEAKER_LABELS) {
+            val nodes = root.findAccessibilityNodeInfosByText(label) ?: continue
+            for (n in nodes) {
+                var c: AccessibilityNodeInfo? = n
+                var up = 0
+                while (c != null && !c.isCheckable && up < 3) { c = c.parent; up++ }
+                if (c != null && c.isCheckable && c.isVisibleToUser) return c
+            }
         }
         return null
     }

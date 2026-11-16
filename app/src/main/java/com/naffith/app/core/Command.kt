@@ -28,7 +28,7 @@ sealed interface Command {
     ) : Command
 
     /** الاتصال بجهة اتصال. نفس منطق [WhatsApp] للأسماء. */
-    data class Call(val contactNames: List<String>) : Command
+    data class Call(val contactNames: List<String>, val speaker: Boolean = false) : Command
 
     /**
      * فتح أي تطبيق في الجوال باسمه («افتح التيك توك»)، و[query] بحث داخله إذا طلبه

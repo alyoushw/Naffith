@@ -387,4 +387,6 @@
     <string name="smart_failed">⚠️ الفهم الذكي ما اشتغل (%1$s)</string>
     <string name="smart_no_key">⚠️ الفهم الذكي واقف: ما فيه مفتاح Gemini في الإعدادات</string>
     <string name="place_call_via_maps">أفتح «%1$s» في الخرائط وأضغط «اتصال»…</string>
+    <string name="speaker_switch">الاتصال دايماً على مكبر الصوت</string>
+    <string name="calling_speaker">أتصل على %1$s (مكبر الصوت) 🔊</string>
 </resources>

@@ -35,6 +35,13 @@ object VoicePrefs {
     fun setPatience(context: Context, value: Int) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt("listen_patience", value).apply()
 
+    /** الاتصال من مرسال يبدأ دايماً على مكبر الصوت. */
+    fun alwaysSpeaker(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("call_speaker", false)
+
+    fun setAlwaysSpeaker(context: Context, value: Boolean) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("call_speaker", value).apply()
+
     fun speakReplies(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SPEAK, true)
 

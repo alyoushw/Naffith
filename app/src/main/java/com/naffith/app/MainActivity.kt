@@ -957,8 +957,8 @@ open class MainActivity : AppCompatActivity() {
                 if (command.contactNames.isEmpty()) {
                     askFollowUp(getString(R.string.ask_call_name)) { Command.Call(CommandParser.parseName(it)) }
                 } else {
-                    resolveContact(command.contactNames, retry = { Command.Call(CommandParser.parseName(it)) }) { contact ->
-                        placeCall(contact)
+                    resolveContact(command.contactNames, retry = { Command.Call(CommandParser.parseName(it), command.speaker) }) { contact ->
+                        placeCall(contact, command.speaker)
                     }
                 }
 
@@ -1772,15 +1772,34 @@ open class MainActivity : AppCompatActivity() {
     }
 
     /** اتصال مباشر إذا سمح المستخدم، وإلا نفتح لوحة الاتصال بالرقم. */
-    private fun placeCall(contact: Contact) {
+    private fun placeCall(contact: Contact, speaker: Boolean = false) {
         val canCall = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
         if (!canCall) {
             dialInstead(contact)
             return
         }
+        val onSpeaker = speaker || VoicePrefs.alwaysSpeaker(this)
         withPermission(Manifest.permission.CALL_PHONE, onDenied = { dialInstead(contact) }) {
-            setStatus(getString(R.string.calling, contact.name))
-            if (!launcher.call(contact.number)) dialInstead(contact)
+            setStatus(getString(if (onSpeaker) R.string.calling_speaker else R.string.calling, contact.name))
+            val ok = if (onSpeaker) callOnSpeaker(contact.number) else launcher.call(contact.number)
+            if (!ok) dialInstead(contact)
+        }
+    }
+
+    /** اتصال يبدأ على مكبر الصوت (طريقة أندرويد الرسمية)، واحتياط: خدمة مرسال تضغط «مكبر الصوت». */
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun callOnSpeaker(number: String): Boolean {
+        val uri = Uri.fromParts("tel", number, null)
+        val extras = Bundle().apply { putBoolean(android.telecom.TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, true) }
+        WhatsAppSendService.requestSpeaker()
+        return runCatching {
+            getSystemService(android.telecom.TelecomManager::class.java).placeCall(uri, extras)
+            true
+        }.getOrElse {
+            runCatching {
+                startActivity(Intent(Intent.ACTION_CALL, uri).putExtras(extras).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                true
+            }.getOrDefault(false)
         }
     }
 

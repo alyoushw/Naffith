@@ -173,6 +173,8 @@ object CommandParser {
         // الموقع وسجل المكالمات: «ارسل موقعي لروحي»، «احفظ آخر رقم باسم المندوب».
         LocationParser.parse(text)?.let { return it }
         if (has(callWords)) scheduledCall(tokens, nowMinutes)?.let { return it }
+        // «اتصل على روحي وخله مكبر صوت»: اتصال على المكبر (مو «كبّر الصوت»).
+        if (has(callWords) && tokens.any { it.normalized in speakerWords }) return speakerCall(tokens)
 
         return when {
             has(whatsappWords) -> whatsApp(tokens)
@@ -180,7 +182,7 @@ object CommandParser {
             // التحكم في الجوال: منبه، صوت، إضاءة، كشاف، موسيقى…
             DeviceParser.parse(text, nowMinutes) != null -> DeviceParser.parse(text, nowMinutes)!!
             // «اتصل على البيت» اتصال، مو توجيه.
-            has(callWords) -> Command.Call(contactNames(tokens, callWords))
+            has(callWords) -> speakerCall(tokens)
             // «افتح التيك توك وابحث عن …» / «ابحث في سناب عن …»: تطبيق معروف.
             openApp(tokens, knownOnly = true) != null -> openApp(tokens, knownOnly = true)!!
             // «البيت» / «الدوام» لحالها: وديني هناك.
@@ -450,6 +452,21 @@ object CommandParser {
             .dropWhile { it.normalized in leadNoise }
             .filterNot { isCallFiller(it.normalized) }
         return Command.CallLater(contactNames(nameTokens, emptySet()), delay, at, note.trim())
+    }
+
+    /** «… على مكبر الصوت» / «وخله سبيكر»: الاتصال يبدأ على المكبر. */
+    private val speakerWords = setOf("مكبر", "المكبر", "بالمكبر", "سبيكر", "السبيكر", "بالسبيكر", "speaker", "لاودسبيكر", "الخارجيه", "خارجي")
+    private val speakerLead = setOf("و", "على", "وخله", "خله", "خلي", "وخلي", "حط", "وحط", "حطه", "وحطه", "افتح", "وافتح", "شغل", "وشغل", "بس", "يكون", "ويكون", "مع", "ب", "السماعه", "سماعه")
+
+    private fun speakerCall(tokens: List<Token>): Command.Call {
+        val at = tokens.indexOfFirst { it.normalized in speakerWords }
+        if (at < 0) return Command.Call(contactNames(tokens, callWords))
+        // الاسم قبل كلمة المكبر (أو بعدها لو قالها أول: «على المكبر اتصل على روحي»).
+        var before = tokens.take(at)
+        while (before.isNotEmpty() && before.last().normalized in speakerLead) before = before.dropLast(1)
+        val after = tokens.drop(at + 1).dropWhile { it.normalized in speakerLead || it.normalized == "الصوت" || it.normalized == "صوت" }
+        val nameTokens = if (before.any { isWord(it.normalized, callWords) } && contactNames(before, callWords).isNotEmpty()) before else after
+        return Command.Call(contactNames(nameTokens, callWords), speaker = true)
     }
 
     private fun contactNames(tokens: List<Token>, appWords: Set<String>): List<String> {

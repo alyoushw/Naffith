@@ -40,7 +40,7 @@ object SmartIntent {
         appendLine("افهم وش يقصد بالضبط مثل ما يفهمه إنسان، وصحّح أخطاء السمع من المعنى، ورد JSON فقط:")
         appendLine("{\"text\":\"الجملة بعد التصحيح\",\"kind\":\"actions\" أو \"question\",\"actions\":[...]}")
         appendLine("أنواع الـactions (استخدم اللي يلزم بس، لين 3 بترتيب كلامه):")
-        appendLine("{\"type\":\"call\",\"contact\":\"اسم الشخص\"}  اتصال بشخص من جهات اتصاله")
+        appendLine("{\"type\":\"call\",\"contact\":\"اسم الشخص\",\"speaker\":true/false}  اتصال بشخص من جهات اتصاله (speaker=true إذا طلب مكبر الصوت)")
         appendLine("{\"type\":\"call_place\",\"place\":\"اسم المحل/الشركة/المطعم\"}  اتصال بمحل أو مكان (مو شخص)")
         appendLine("{\"type\":\"whatsapp\",\"contact\":\"\",\"message\":\"\",\"send\":true/false}  فتح محادثة واتساب (message فاضي = بس افتح المحادثة). send=true إذا قال ارسل، false إذا قال اكتب أو بس افتح")
         appendLine("{\"type\":\"maps_search\",\"query\":\"\"}  بحث عن مكان أو نشاط في الخرائط")
@@ -110,7 +110,7 @@ object SmartIntent {
     private fun delay(o: JSONObject): Int? = o.optInt("delay_seconds", 0).takeIf { it > 0 }
 
     private fun toCommand(o: JSONObject, now: Int): Command? = when (o.optString("type")) {
-        "call" -> Command.Call(names(o))
+        "call" -> Command.Call(names(o), speaker = o.optBoolean("speaker", false))
         "call_place" -> o.optString("place").trim().takeIf { it.isNotEmpty() }?.let { Command.CallPlace(it) }
         "whatsapp" -> Command.WhatsApp(names(o), o.optString("message").trim(), o.optBoolean("send", false))
         "maps_search" -> Command.OpenMaps(o.optString("query").trim())
